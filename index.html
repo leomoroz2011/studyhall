@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Study Hall</title>
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Study Hall">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+  :root { --bg: #f4f5f7; --card: #fff; --text: #111; --muted: #666; --blue: #2563eb; --green: #16a34a; --red: #dc2626; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --text: #f2f2f2; --muted: #999; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 18px/1.4 -apple-system, system-ui, sans-serif;
+         padding: max(16px, env(safe-area-inset-top)) 16px 40px; }
+  h1 { font-size: 28px; margin: 8px 0 16px; }
+  h2 { font-size: 20px; margin: 0 0 12px; }
+  .card { background: var(--card); border-radius: 16px; padding: 18px; margin-bottom: 16px; }
+  .muted { color: var(--muted); font-size: 16px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 14px; padding: 18px; width: 100%; color: #fff; background: var(--blue); }
+  button:active { opacity: .7; }
+  .two { display: flex; gap: 12px; }
+  .green { background: var(--green); } .red { background: var(--red); }
+  .plain { background: transparent; color: var(--blue); padding: 12px; }
+  textarea { width: 100%; font: inherit; padding: 12px; border-radius: 12px; border: 2px solid #ccc; margin: 12px 0; min-height: 80px; background: var(--card); color: var(--text); }
+  .error { color: var(--red); margin: -4px 0 12px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .stats b { display: block; font-size: 34px; }
+  .stats span { font-size: 14px; color: var(--muted); }
+  .row { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .row select, .row input { font: inherit; font-size: 16px; padding: 8px 4px; border-radius: 10px; border: 1px solid #ccc; background: var(--card); color: var(--text); min-width: 0; flex: 1; }
+  .row .x { width: auto; padding: 8px 12px; background: transparent; color: var(--red); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1>Study Hall</h1>
+
+<div id="main" hidden>
+  <div class="card">
+    <h2>Log study hall</h2>
+    <div id="log-open">
+      <p id="log-q"></p>
+      <div class="two">
+        <button id="btn-hw" class="green">Homework</button>
+        <button id="btn-slack" class="red">Slacked</button>
+      </div>
+      <div id="hw-form" hidden>
+        <textarea id="hw-note" placeholder="What did you work on? (e.g. math worksheet 4)"></textarea>
+        <p id="hw-error" class="error" hidden>Type what you worked on first.</p>
+        <button id="btn-hw-save" class="green">Save</button>
+      </div>
+      <p id="log-deadline" class="muted"></p>
+    </div>
+    <p id="log-closed" class="muted"></p>
+  </div>
+
+  <div class="card">
+    <h2>Evening check</h2>
+    <div id="eve-ask">
+      <p>Am I doing homework tonight that was assigned <b>before today</b>?</p>
+      <div class="two">
+        <button id="eve-yes" class="red">Yes</button>
+        <button id="eve-no" class="green">No</button>
+      </div>
+    </div>
+    <p id="eve-msg" class="muted"></p>
+  </div>
+
+  <div class="card">
+    <h2>Scoreboard</h2>
+    <div class="stats">
+      <div><b id="s-streak">0</b><span>homework streak</span></div>
+      <div><b id="s-pct">—</b><span>homework this week</span></div>
+      <div><b id="s-nights">0</b><span>night-before nights this week</span></div>
+    </div>
+  </div>
+
+  <button id="btn-edit" class="plain">Edit study hall schedule</button>
+  <button id="btn-export" class="plain">Export backup</button>
+  <button id="btn-import" class="plain">Restore from backup</button>
+  <input id="import-file" type="file" accept=".json,application/json" hidden>
+</div>
+
+<div id="settings" class="card" hidden>
+  <h2>Your study hall schedule</h2>
+  <p class="muted">Add one line per study hall (day, start time, end time).</p>
+  <div id="rows"></div>
+  <button id="btn-add" class="plain">+ Add another study hall</button>
+  <button id="btn-save-sched">Save schedule</button>
+  <button id="btn-cancel" class="plain">Cancel</button>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

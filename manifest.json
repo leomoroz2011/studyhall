@@ -1,0 +1,9 @@
+{
+  "name": "Study Hall",
+  "short_name": "Study Hall",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#2563eb",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+}
