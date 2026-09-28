@@ -168,6 +168,22 @@ if (typeof document !== 'undefined') {
     render();
   };
 
+  // 6:50 PM reminder: the phone gives us an address, GitHub sends the notification to it each evening.
+  const PUSH_KEY = 'BKnyV02fu2IcOi6q4_Oe1Q9XYG0P4gjLHRZCzh0xnfJbIfmSZOH8tVELvLWGK6Bb97q-LCqvUc6I6aDcjsQu6lQ';
+  $('#btn-notify').onclick = async () => {
+    if (!('PushManager' in window)) return alert('Open Study Hall from your home-screen icon first, then tap this again.');
+    try {
+      if (await Notification.requestPermission() !== 'granted')
+        return alert('Notifications are off. Turn them on in Settings → Notifications → Study Hall.');
+      const reg = await navigator.serviceWorker.ready;
+      const key = Uint8Array.from(atob(PUSH_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+      const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      $('#sub-json').value = JSON.stringify(sub);
+      $('#notify-code').hidden = false;
+    } catch (err) { alert(`Couldn’t turn on the reminder: ${err.message}`); }
+  };
+  $('#btn-copy-sub').onclick = () => navigator.clipboard.writeText($('#sub-json').value).then(() => alert('Copied!'));
+
   // Backup
   $('#btn-export').onclick = async () => {
     const file = new File([JSON.stringify(state, null, 2)], `study-hall-backup-${ymd(new Date())}.json`, { type: 'application/json' });
