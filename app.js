@@ -140,7 +140,13 @@ if (typeof document !== 'undefined') {
     $('#btn-cancel').hidden = !state.schedule.length;
   }
   $('#btn-edit').onclick = showSettings;
-  $('#btn-add').onclick = () => addRow();
+  // New line copies the times from the last line and moves to the next day.
+  $('#btn-add').onclick = () => {
+    const last = [...document.querySelectorAll('#rows .row')].pop();
+    if (!last) return addRow();
+    const [sel, start, end] = last.querySelectorAll('select, input');
+    addRow({ day: (+sel.value + 1) % 7, start: start.value, end: end.value });
+  };
   $('#btn-cancel').onclick = () => { $('#settings').hidden = true; };
   $('#btn-save-sched').onclick = () => {
     const rows = [...document.querySelectorAll('#rows .row')];
