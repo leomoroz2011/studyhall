@@ -78,9 +78,10 @@ if (typeof document !== 'undefined') {
       $('#log-deadline').textContent = `You can log this until ${fmt(`${pad(slot.close.getHours())}:${pad(slot.close.getMinutes())}`)}.`;
     } else {
       const n = nextSlot(state, now);
+      const clock = `It's ${DAYS[now.getDay()]} ${fmt(`${pad(now.getHours())}:${pad(now.getMinutes())}`)}.`;
       $('#log-closed').textContent = n
-        ? `Nothing to log right now. Next study hall: ${DAYS[n.day.getDay()]} ${fmt(n.start)}–${fmt(n.endStr)}.`
-        : 'Nothing to log right now.';
+        ? `${clock} Next study hall: ${ymd(n.day) === ymd(now) ? 'Today' : DAYS[n.day.getDay()]} ${fmt(n.start)}–${fmt(n.endStr)}. You can log it once it ends at ${fmt(n.endStr)}.`
+        : `${clock} Nothing to log right now.`;
     }
 
     // Evening check
@@ -142,12 +143,17 @@ if (typeof document !== 'undefined') {
   $('#btn-add').onclick = () => addRow();
   $('#btn-cancel').onclick = () => { $('#settings').hidden = true; };
   $('#btn-save-sched').onclick = () => {
-    const schedule = [...document.querySelectorAll('#rows .row')].map(r => {
+    const rows = [...document.querySelectorAll('#rows .row')];
+    const schedule = rows.map(r => {
       const [sel, start, end] = r.querySelectorAll('select, input');
       return { day: +sel.value, start: start.value, end: end.value };
     });
     if (!schedule.length) return alert('Add at least one study hall.');
-    if (schedule.some(s => !s.start || !s.end || s.end <= s.start)) return alert('Each study hall needs a start and an end time, and the end must be after the start.');
+    // A half-typed time (e.g. AM/PM not picked) reads as empty, so point at the exact line.
+    const bad = schedule.map(s => !s.start || !s.end || s.end <= s.start);
+    rows.forEach((r, i) => r.classList.toggle('bad', bad[i]));
+    const badDays = schedule.filter((s, i) => bad[i]).map(s => DAYS[s.day]);
+    if (badDays.length) return alert(`Check the red line(s): ${badDays.join(', ')}.\n\nClick each time and make sure the hour, minutes AND AM/PM are all filled in. The end has to be after the start.`);
     if (state.schedule.length) sweep(state, new Date()); // lock in misses from the old schedule first
     state.schedule = schedule;
     state.since = new Date().toISOString(); // the new schedule only counts from now on
