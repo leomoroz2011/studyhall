@@ -67,7 +67,7 @@ if (typeof document !== 'undefined') {
     const setUp = state.schedule.length > 0;
     if (setUp) { sweep(state, now); save(); }
     $('#main').hidden = !setUp;
-    if (!setUp) { showSettings(); return; }
+    if (!setUp) { if ($('#settings').hidden) showSettings(); return; } // don't wipe rows you're typing in
 
     // Study hall log
     const slot = openSlot(state, now);
