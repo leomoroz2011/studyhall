@@ -178,11 +178,20 @@ if (typeof document !== 'undefined') {
       const reg = await navigator.serviceWorker.ready;
       const key = Uint8Array.from(atob(PUSH_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
       const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-      $('#sub-json').value = JSON.stringify(sub);
+      const code = JSON.stringify(sub);
+      // Same code you already sent to GitHub = nothing to do. Only show it if it's new (or the phone changed it).
+      if (code === localStorage.getItem('pushSent')) return alert('Your 6:50 PM reminder is already on ✅');
+      $('#sub-json').value = code;
       $('#notify-code').hidden = false;
     } catch (err) { alert(`Couldn’t turn on the reminder: ${err.message}`); }
   };
-  $('#btn-copy-sub').onclick = () => navigator.clipboard.writeText($('#sub-json').value).then(() => alert('Copied!'));
+  $('#btn-copy-sub').onclick = () => navigator.clipboard.writeText($('#sub-json').value).then(() => {
+    localStorage.setItem('pushSent', $('#sub-json').value);
+    $('#notify-code').hidden = true;
+    $('#btn-notify').textContent = '6:50 PM reminder is on ✅';
+    alert('Copied! Paste it into GitHub (the PUSH_SUBSCRIPTION secret) and you’re done.');
+  });
+  if (localStorage.getItem('pushSent')) $('#btn-notify').textContent = '6:50 PM reminder is on ✅';
 
   // Backup
   $('#btn-export').onclick = async () => {
