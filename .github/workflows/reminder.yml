@@ -20,4 +20,5 @@ jobs:
         env:
           SCHEDULE: ${{ github.event.schedule }}
           PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
+          PUSH_SUBSCRIPTION_COMPUTER: ${{ secrets.PUSH_SUBSCRIPTION_COMPUTER }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}

@@ -10,7 +10,12 @@ webpush.setVapidDetails(
   'BKnyV02fu2IcOi6q4_Oe1Q9XYG0P4gjLHRZCzh0xnfJbIfmSZOH8tVELvLWGK6Bb97q-LCqvUc6I6aDcjsQu6lQ',
   process.env.VAPID_PRIVATE_KEY,
 );
-webpush.sendNotification(JSON.parse(process.env.PUSH_SUBSCRIPTION),
-  'Evening check: are you doing homework tonight that was assigned before today?')
-  .then(() => console.log('Sent'))
-  .catch(err => { console.error(err.body || err); process.exit(1); }); // fails loudly → GitHub emails you
+// One secret per device (phone, computer). A device with no secret saved is skipped.
+const devices = { phone: process.env.PUSH_SUBSCRIPTION, computer: process.env.PUSH_SUBSCRIPTION_COMPUTER };
+for (const [name, code] of Object.entries(devices)) {
+  if (!code) continue;
+  webpush.sendNotification(JSON.parse(code),
+    'Evening check: are you doing homework tonight that was assigned before today?')
+    .then(() => console.log(`Sent to ${name}`))
+    .catch(err => { console.error(name, err.body || err); process.exitCode = 1; }); // fails loudly → GitHub emails you
+}
