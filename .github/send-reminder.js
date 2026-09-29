@@ -14,8 +14,9 @@ webpush.setVapidDetails(
 const devices = { phone: process.env.PUSH_SUBSCRIPTION, computer: process.env.PUSH_SUBSCRIPTION_COMPUTER };
 for (const [name, code] of Object.entries(devices)) {
   if (!code) continue;
-  webpush.sendNotification(JSON.parse(code),
-    'Evening check: are you doing homework tonight that was assigned before today?')
+  // new Promise(...) turns a badly pasted secret into a failure for this device only, not a crash for all of them.
+  new Promise(ok => ok(webpush.sendNotification(JSON.parse(code),
+    'Evening check: are you doing homework tonight that was assigned before today?')))
     .then(() => console.log(`Sent to ${name}`))
     .catch(err => { console.error(name, err.body || err); process.exitCode = 1; }); // fails loudly → GitHub emails you
 }
