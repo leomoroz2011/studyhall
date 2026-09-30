@@ -36,7 +36,7 @@ const chill = !test && log.days.length >= 3 && !log.days.includes(today);
 
 let text;
 if (chill) { text = msgs.chill; log.paused = now.toISOString(); }
-else if (!state) text = 'Evening check time! 🌙 (Connect smart reminders in the app to see your streak here.)';
+else if (!state) text = 'Evening check time! (Connect smart reminders in the app to see your streak here.)';
 else {
   const sb = scoreboard(state.logs, now), type = due === 'eve' ? 'eve' : 'sh';
   const pool = sb.streak ? type : type === 'sh' && sb.last === 'broke' ? 'shBack' : `${type}0`;

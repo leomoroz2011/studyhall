@@ -1,4 +1,5 @@
 // Reminder messages, "sarcastic best friend" voice. n = your streak, f = freezes left.
+// The only emoji allowed is 🔥, right after the streak number.
 // Add or edit lines freely: each one is `(n, f) => \`text\``.
 const s = f => (f === 1 ? '' : 's');
 
@@ -38,14 +39,14 @@ module.exports = {
   ],
   // Right after study hall ends, streak JUST broke (Homework now earns a comeback freeze)
   shBack: [
-    () => `Your streak died. RIP. Log Homework right now for a comeback freeze 🧊`,
+    () => `Your streak died. RIP. Log Homework right now for a comeback freeze.`,
     () => `Streak broke. Comeback bonus is on the table: log Homework and get a free freeze.`,
-    () => `Villain origin story or comeback arc? Log Homework and earn a freeze 🧊`,
+    () => `Villain origin story or comeback arc? Log Homework and earn a freeze.`,
     () => `Streak: 0. But Homework now = comeback freeze. Don't fumble this twice.`,
   ],
   // 6:50 PM evening check (streak 1 or more)
   eve: [
-    n => `Evening check 🌙 Any homework tonight that was assigned before today? Be honest. (${n} 🔥)`,
+    n => `Evening check. Any homework tonight that was assigned before today? Be honest. (${n} 🔥)`,
     n => `Did past-you leave homework for present-you again? Evening check time. (${n} 🔥)`,
     n => `Day ${n} 🔥. Real question: is there old homework hiding in your backpack?`,
     n => `Evening check before you "just watch one video." We both know how that ends. (${n} 🔥)`,
@@ -70,7 +71,7 @@ module.exports = {
   ],
   // 6:50 PM evening check, streak is 0
   eve0: [
-    () => `Evening check 🌙 Streak's at 0, so tonight's a fresh start. Any old homework?`,
+    () => `Evening check. Streak's at 0, so tonight's a fresh start. Any old homework?`,
     () => `Streak: 0. The bar is on the floor. Step over it: do the evening check.`,
     () => `Evening check. No streak to lose — the one upside of having no streak.`,
     () => `0 🔥. Tomorrow's study hall is your comeback. Tonight: answer the evening check.`,

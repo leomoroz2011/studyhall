@@ -7,6 +7,6 @@ self.addEventListener('fetch', e => e.respondWith(
 
 // The 6:50 PM reminder (sent by GitHub, see .github/workflows/reminder.yml).
 self.addEventListener('push', e => e.waitUntil(
-  self.registration.showNotification('Study Hall', { body: e.data ? e.data.text() : 'Evening check time!', icon: 'icon.png' })
+  self.registration.showNotification('Clutch', { body: e.data ? e.data.text() : 'Evening check time!', icon: 'icon.png' })
 ));
 self.addEventListener('notificationclick', e => { e.notification.close(); e.waitUntil(clients.openWindow('./')); });

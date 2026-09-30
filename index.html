@@ -3,116 +3,170 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Study Hall</title>
-<meta name="theme-color" content="#2563eb">
+<title>Clutch</title>
+<meta name="theme-color" content="#141312">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Study Hall">
-<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Clutch">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #f4f5f7; --card: #fff; --text: #111; --muted: #666; --blue: #2563eb; --green: #16a34a; --red: #dc2626; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --text: #f2f2f2; --muted: #999; } }
+  :root { --bg: #141312; --card: #1E1C1A; --text: #F6F1E7; --muted: #A8A29A; --line: #3A3733;
+          --orange: #FF5A1F; --ice: #9CC4F2; --ice-bg: #2B3A4A; --red: #FF6B5B;
+          --big: 'Bricolage Grotesque', system-ui, sans-serif; --mono: 'DM Mono', ui-monospace, monospace; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 18px/1.4 -apple-system, system-ui, sans-serif;
-         padding: max(16px, env(safe-area-inset-top)) 16px 40px; }
-  h1 { font-size: 28px; margin: 8px 0 16px; }
-  h2 { font-size: 20px; margin: 0 0 12px; }
-  .card { background: var(--card); border-radius: 16px; padding: 18px; margin-bottom: 16px; }
-  .muted { color: var(--muted); font-size: 16px; }
-  button { font: inherit; font-weight: 600; border: 0; border-radius: 14px; padding: 18px; width: 100%; color: #fff; background: var(--blue); }
-  button:active { opacity: .7; }
-  .two { display: flex; gap: 12px; }
-  .green { background: var(--green); } .red { background: var(--red); }
-  .plain { background: transparent; color: var(--blue); padding: 12px; }
-  textarea { width: 100%; font: inherit; padding: 12px; border-radius: 12px; border: 2px solid #ccc; margin: 12px 0; min-height: 80px; background: var(--card); color: var(--text); }
-  .error { color: var(--red); margin: -4px 0 12px; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
-  .stats b { display: block; font-size: 34px; }
-  .stats span { font-size: 14px; color: var(--muted); }
-  .row { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
-  .row select, .row input { font: inherit; font-size: 16px; padding: 8px 4px; border-radius: 10px; border: 1px solid #ccc; background: var(--card); color: var(--text); min-width: 0; flex: 1; }
-  .row.bad input { border: 2px solid var(--red); }
-  .row .x { width: auto; padding: 8px 12px; background: transparent; color: var(--red); }
-  .center { text-align: center; }
-  .huge { display: block; font-size: 110px; line-height: 1; margin-top: 8px; }
-  #s-event { font-weight: 600; margin: 12px 0; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.4 'Instrument Sans', system-ui, sans-serif;
+         padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom)); }
+  h1, h2, button, .num { font-family: var(--big); font-weight: 800; }
+  h1 { font-size: 30px; margin: 0; letter-spacing: -0.5px; }
+  h2 { font-size: 20px; margin: 0; }
+  p { margin: 0; }
+  svg { display: block; }
+  .label, .mono { font-family: var(--mono); font-size: 12px; letter-spacing: 1px; color: var(--muted); }
+  .sub { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 18px; }
+  .between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+  /* Home: fills exactly one screen, log card sits at the bottom */
+  #main { display: flex; flex-direction: column; gap: 14px; min-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; background: var(--ice-bg); color: var(--ice); border-radius: 99px; padding: 7px 12px; font-family: var(--mono); font-size: 13px; }
+  .icon-btn { background: none; border: 0; padding: 8px; color: var(--muted); min-height: 0; width: auto; }
+  .hero { text-align: center; padding: 6px 0 0; }
+  .streak { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .streak .num { font-size: 150px; line-height: .9; letter-spacing: -6px; }
+  .hero .label { margin-top: 10px; }
+  .hero .sub { margin-top: 4px; }
+  #celebrate { background: var(--orange); color: var(--bg); border-radius: 14px; padding: 12px; font-family: var(--big); font-weight: 800; font-size: 22px; margin-bottom: 8px; }
+  #s-event { margin-top: 8px; font-weight: 600; }
   #s-event:empty { display: none; }
-  .celebrate { background: linear-gradient(135deg, #f97316, #db2777); color: #fff; font-size: 26px; font-weight: 800; border-radius: 14px; padding: 16px; margin: 0 0 8px; }
-  .celebrate span { font-size: 16px; font-weight: 500; }
+  #s-event.ice { color: var(--ice); }
+  .dots { display: flex; justify-content: space-between; margin-top: 14px; }
+  .dot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .dot i { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: #2A2724; }
+  .dot.hw i { background: var(--orange); color: var(--bg); }
+  .dot.frozen i { background: var(--ice-bg); color: var(--ice); }
+  .dot.slack i { background: #4A4642; }
+  .dot.today i { background: none; border: 2px solid var(--text); }
+  .bottom { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  .bottom .card { display: flex; flex-direction: column; gap: 12px; }
+  textarea { width: 100%; font: inherit; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-height: 64px; resize: none; }
+  textarea::placeholder { color: #6E6861; }
+  .error { color: var(--red); font-size: 15px; }
+  .btns { display: flex; gap: 10px; }
+  .footer { text-align: center; }
+  #log-time { white-space: nowrap; }
+
+  button { font-size: 20px; border-radius: 16px; min-height: 60px; padding: 0 16px; width: 100%; cursor: pointer; }
+  button:active { opacity: .7; }
+  .primary { background: var(--orange); color: var(--bg); border: 0; }
+  .outline { background: none; color: var(--text); border: 2px solid var(--line); }
+  .btns .primary { flex: 2; } .btns .outline { flex: 1; }
+  .link { background: none; border: 0; color: var(--orange); font-size: 17px; min-height: 48px; }
+
+  /* Settings */
+  #settings { display: flex; flex-direction: column; gap: 14px; }
+  #settings .card { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row select, .row input { font: inherit; font-size: 16px; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; flex: 1; color-scheme: dark; }
+  .row.bad input { border: 2px solid var(--red); }
+  .row .x { width: auto; min-height: 44px; padding: 0 12px; background: none; border: 0; color: var(--red); font-size: 18px; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<h1>Study Hall</h1>
 
 <div id="main" hidden>
-  <div class="card center">
-    <p id="celebrate" class="celebrate" hidden>🎉 DAY 7! A FULL WEEK STREAK! 🎉<br><span>Honestly? Proud of you.</span></p>
-    <b id="s-streak" class="huge">0</b>
-    <span class="muted">🔥 homework streak</span>
+  <div class="between">
+    <h1>Clutch</h1>
+    <div class="between" style="gap:4px">
+      <span class="pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 3 3-3M9 20l3-3 3 3"/></svg><span id="s-freezes">1 freeze left</span></span>
+      <button id="btn-gear" class="icon-btn" aria-label="Settings"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <p id="celebrate" hidden>Day 7. A full week. Honestly? Proud of you.</p>
+    <div class="streak">
+      <svg width="84" height="104" viewBox="22 10 56 82"><path d="M50 12 C59 30 76 40 76 62 C76 79 64 90 50 90 C36 90 24 79 24 62 C24 48 32 40 38 32 C39 43 44 49 50 51 C46 38 45 25 50 12 Z" fill="#FF5A1F"/></svg>
+      <b id="s-streak" class="num">0</b>
+    </div>
+    <p class="label">STUDY HALL STREAK</p>
+    <p id="s-best" class="sub"></p>
     <p id="s-event"></p>
-    <div class="stats">
-      <div><b id="s-best">0</b><span>best ever</span></div>
-      <div><b id="s-freezes">0</b><span>🧊 freezes left</span></div>
-      <div><b id="s-pct">—</b><span>homework this week</span></div>
-    </div>
-    <p class="muted">Night-before nights this week: <b id="s-nights">0</b></p>
   </div>
 
   <div class="card">
-    <h2>Log study hall</h2>
-    <div id="log-open">
-      <p id="log-q"></p>
-      <div class="two">
-        <button id="btn-hw" class="green">Homework</button>
-        <button id="btn-slack" class="red">Slacked</button>
-      </div>
-      <div id="hw-form" hidden>
-        <textarea id="hw-note" placeholder="What did you work on? (e.g. math worksheet 4)"></textarea>
-        <p id="hw-error" class="error" hidden>Type what you worked on first.</p>
-        <button id="btn-hw-save" class="green">Save</button>
-      </div>
-      <p id="log-deadline" class="muted"></p>
-    </div>
-    <p id="log-closed" class="muted"></p>
+    <div class="between"><span class="label">THIS WEEK</span><span id="s-halls" class="mono"></span></div>
+    <div id="week-dots" class="dots"></div>
   </div>
 
-  <div class="card">
-    <h2>Evening check</h2>
-    <div id="eve-ask">
+  <div class="bottom">
+    <div id="log-card" class="card">
+      <div class="between"><h2>Study hall just ended</h2><span id="log-time" class="mono"></span></div>
+      <label class="label" for="hw-note">WHAT DID YOU WORK ON?</label>
+      <textarea id="hw-note" placeholder="e.g. math worksheet 4"></textarea>
+      <p id="hw-error" class="error" hidden>Type what you worked on first.</p>
+      <div class="btns">
+        <button id="btn-hw" class="primary">Homework</button>
+        <button id="btn-slack" class="outline">Slacked</button>
+      </div>
+    </div>
+
+    <div id="eve-card" class="card">
+      <h2>Evening check</h2>
       <p>Am I doing homework tonight that was assigned <b>before today</b>?</p>
-      <div class="two">
-        <button id="eve-yes" class="red">Yes</button>
-        <button id="eve-no" class="green">No</button>
+      <div class="btns">
+        <button id="eve-no" class="primary">No</button>
+        <button id="eve-yes" class="outline">Yes</button>
       </div>
     </div>
-    <p id="eve-msg" class="muted"></p>
-  </div>
 
-  <button id="btn-edit" class="plain">Edit study hall schedule</button>
-  <button id="btn-export" class="plain">Export backup</button>
-  <button id="btn-import" class="plain">Restore from backup</button>
-  <input id="import-file" type="file" accept=".json,application/json" hidden>
+    <div id="done-card" class="card">
+      <h2 id="done-title">All logged for today</h2>
+      <p id="done-msg" class="sub"></p>
+    </div>
+
+    <p class="footer mono">Logging closes 4 hours after the bell, or at midnight.</p>
+  </div>
 </div>
 
-<div id="settings" class="card" hidden>
-  <h2>Your study hall schedule</h2>
-  <p class="muted">Add one line per study hall (day, start time, end time).</p>
-  <div id="rows"></div>
-  <button id="btn-add" class="plain">+ Add another study hall</button>
-  <button id="btn-save-sched">Save schedule</button>
-  <button id="btn-cancel" class="plain">Cancel</button>
-
-  <h2 style="margin-top:24px">Reminders</h2>
-  <p class="muted">Only needed if reminders stop arriving.</p>
-  <button id="btn-notify" class="plain">Turn on 6:50 PM reminder</button>
-  <div id="notify-code" hidden>
-    <p class="muted">Copy this code and send it to GitHub so it knows where to send your reminder.</p>
-    <textarea id="sub-json" readonly></textarea>
-    <button id="btn-copy-sub">Copy code</button>
+<div id="settings" hidden>
+  <div class="between">
+    <h1>Settings</h1>
+    <button id="btn-cancel" class="link" style="width:auto">Done</button>
   </div>
-  <button id="btn-sync" class="plain">Connect smart reminders</button>
-  <p id="sync-status" class="muted center"></p>
+
+  <div class="card">
+    <h2>Study hall schedule</h2>
+    <p class="sub">One line per study hall (day, start time, end time).</p>
+    <div id="rows"></div>
+    <button id="btn-add" class="link">+ Add another study hall</button>
+    <button id="btn-save-sched" class="primary">Save schedule</button>
+  </div>
+
+  <div class="card">
+    <h2>Backup</h2>
+    <button id="btn-export" class="outline">Export backup</button>
+    <button id="btn-import" class="outline">Restore from backup</button>
+    <input id="import-file" type="file" accept=".json,application/json" hidden>
+  </div>
+
+  <div class="card">
+    <h2>Reminders</h2>
+    <p class="sub">Only needed if reminders stop arriving.</p>
+    <button id="btn-notify" class="outline">Turn on reminders</button>
+    <div id="notify-code" hidden>
+      <p class="sub">Copy this code and send it to GitHub so it knows where to send your reminder.</p>
+      <textarea id="sub-json" readonly></textarea>
+      <button id="btn-copy-sub" class="primary">Copy code</button>
+    </div>
+    <button id="btn-sync" class="outline">Connect smart reminders</button>
+    <p id="sync-status" class="mono"></p>
+  </div>
 </div>
 
 <script src="app.js"></script>

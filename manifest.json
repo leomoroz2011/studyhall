@@ -1,9 +1,13 @@
 {
-  "name": "Study Hall",
-  "short_name": "Study Hall",
+  "name": "Clutch",
+  "short_name": "Clutch",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#f4f5f7",
-  "theme_color": "#2563eb",
-  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png" }]
+  "background_color": "#141312",
+  "theme_color": "#141312",
+  "icons": [
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
 }
