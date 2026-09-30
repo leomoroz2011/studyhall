@@ -1,12 +1,12 @@
-# Sends the 6:50 PM Denver-time reminder to your phone every day.
-# GitHub's clock is UTC, so this runs at both possible UTC times and the script keeps the one that matches Denver today
-# (summer = MDT, winter = MST).
+# Checks every 10 minutes from ~6 AM to 10 PM Denver time. The script decides if a reminder is actually due
+# (study hall just ended, or 6:50 PM evening check), so most runs send nothing.
+# GitHub's clock is UTC: 13–23 and 0–4 UTC cover Denver's day in both summer and winter time.
 name: Evening reminder
 on:
   schedule:
-    - cron: '50 0 * * *'
-    - cron: '50 1 * * *'
+    - cron: '*/10 0-4,13-23 * * *'
   workflow_dispatch: # lets you tap "Run workflow" to send a test
+concurrency: reminder # never two at once, so it can't double-send
 jobs:
   send:
     runs-on: ubuntu-latest
@@ -18,7 +18,10 @@ jobs:
       - run: npm install web-push@3
       - run: node .github/send-reminder.js
         env:
-          SCHEDULE: ${{ github.event.schedule }}
+          TZ: America/Denver
+          STATE: ${{ vars.STATE }}
+          NOTIFY: ${{ vars.NOTIFY }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
           PUSH_SUBSCRIPTION_COMPUTER: ${{ secrets.PUSH_SUBSCRIPTION_COMPUTER }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
