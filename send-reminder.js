@@ -1,4 +1,4 @@
-// Run by GitHub every 10 minutes during the day and at 6:50 PM (see workflows/reminder.yml).
+// Run by GitHub every 10 minutes from ~6 AM to 10 PM (see workflows/reminder.yml).
 // Decides whether a reminder is due, writes it with your real streak, and sends it to your devices.
 const webpush = require('web-push');
 const { ymd, at, sweep, slotsOn, scoreboard, putVar } = require('../app.js');
@@ -13,10 +13,10 @@ if (log.day !== today) Object.assign(log, { day: today, sent: [] });
 log.days ||= []; // days a reminder was sent
 log.last ||= {}; // last message used per type, so it never repeats back-to-back
 
-// What's due right now? At most one study-hall reminder + one evening reminder a day, none from 9:30 PM to 7 AM.
+// What's due right now? At most one study-hall reminder + one evening reminder a day, none from 10 PM to 7 AM.
 let due = null;
 if (state) sweep(state, now);
-const quiet = now < at(now, '07:00') || now >= at(now, '21:30');
+const quiet = now < at(now, '07:00') || now >= at(now, '22:00');
 if (test) due = 'eve';
 else if (!quiet) {
   const sh = state && !log.sent.some(k => k !== 'eve') &&

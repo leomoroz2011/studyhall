@@ -1,0 +1,27 @@
+# Checks every 10 minutes from ~6 AM to 10 PM Denver time. The script decides if a reminder is actually due
+# (study hall just ended, or 6:50 PM evening check), so most runs send nothing.
+# GitHub's clock is UTC: 13–23 and 0–4 UTC cover Denver's day in both summer and winter time.
+name: Evening reminder
+on:
+  schedule:
+    - cron: '*/10 0-4,13-23 * * *'
+  workflow_dispatch: # lets you tap "Run workflow" to send a test
+concurrency: reminder # never two at once, so it can't double-send
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install web-push@3
+      - run: node .github/send-reminder.js
+        env:
+          TZ: America/Denver
+          STATE: ${{ vars.STATE }}
+          NOTIFY: ${{ vars.NOTIFY }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
+          PUSH_SUBSCRIPTION_COMPUTER: ${{ secrets.PUSH_SUBSCRIPTION_COMPUTER }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
