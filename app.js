@@ -36,16 +36,35 @@ function nextSlot(state, now) {
   }
 }
 
-// Homework study halls in a row, counting back from the most recent one.
-function streak(logs) {
-  let n = 0;
-  for (const k of Object.keys(logs).sort().reverse()) { if (logs[k].r !== 'hw') break; n++; }
-  return n;
+const mondayOf = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
+
+// Streak rules, replayed over every study hall you've ever logged (so old logs count too):
+// Homework = +1. Slacked/missed = a freeze saves the streak if you have one, otherwise it breaks.
+// You get +1 freeze every Monday, and +1 for Homework at the very next study hall after a break. Never more than 2.
+function scoreboard(logs, now) {
+  let streak = 0, best = 0, freezes = 0, week = null, last = null;
+  const newWeek = day => { // hand out the Monday freezes
+    const monday = mondayOf(day).getTime();
+    freezes = week === null ? 1 : Math.min(2, freezes + Math.round((monday - week) / 6048e5));
+    week = monday;
+  };
+  for (const k of Object.keys(logs).sort()) {
+    const [y, m, d] = k.slice(0, 10).split('-');
+    newWeek(new Date(+y, m - 1, +d));
+    if (logs[k].r === 'hw') {
+      if (last === 'broke') freezes = Math.min(2, freezes + 1);
+      last = last === 'broke' ? 'comeback' : 'hw';
+      best = Math.max(best, ++streak);
+    } else if (streak && freezes) { freezes--; last = 'frozen'; }
+    else { last = streak ? 'broke' : 'miss'; streak = 0; }
+  }
+  newWeek(now);
+  return { streak, best, freezes, last };
 }
 
 // This week = Monday through Sunday.
 function week(state, now) {
-  const from = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (now.getDay() + 6) % 7));
+  const from = ymd(mondayOf(now));
   const logs = Object.entries(state.logs).filter(([k]) => k >= from).map(([, v]) => v);
   const hw = logs.filter(l => l.r === 'hw').length;
   return {
@@ -54,7 +73,17 @@ function week(state, now) {
   };
 }
 
-if (typeof module !== 'undefined') module.exports = { slotsOn, sweep, openSlot, streak, week };
+if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, sweep, openSlot, scoreboard, week, putVar };
+
+// Saves a private setting ("Actions variable") in your GitHub repo. Used by the app to sync and by the reminder script.
+async function putVar(token, name, value) {
+  const url = 'https://api.github.com/repos/leomoroz2011/studyhall/actions/variables';
+  const req = method => fetch(method === 'POST' ? url : `${url}/${name}`, { method, body: JSON.stringify({ name, value }),
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
+  let r = await req('PATCH');
+  if (r.status === 404) r = await req('POST'); // first time: it doesn't exist yet
+  if (!r.ok) throw new Error(r.status === 401 ? 'the token is wrong or expired' : `GitHub said ${r.status}`);
+}
 
 if (typeof document !== 'undefined') {
   const KEY = 'studyhall';
@@ -93,9 +122,17 @@ if (typeof document !== 'undefined') {
       ? `Answered for tonight: ${answer ? 'Yes 😬' : 'No 🎉'}`
       : `Opens at ${fmt(EVENING_OPENS)}.`;
 
-    // Scoreboard
-    const w = week(state, now);
-    $('#s-streak').textContent = streak(state.logs);
+    // Streak + scoreboard
+    const sb = scoreboard(state.logs, now), w = week(state, now);
+    $('#s-streak').textContent = sb.streak;
+    $('#s-best').textContent = sb.best;
+    $('#s-freezes').textContent = sb.freezes;
+    $('#celebrate').hidden = sb.streak !== 7;
+    $('#s-event').textContent = {
+      comeback: 'Comeback bonus earned! 🧊 +1 freeze',
+      frozen: '🧊 A freeze saved your streak. Phew.',
+      broke: '💔 Streak broke. Log Homework at your next study hall to earn a comeback freeze.',
+    }[sb.last] || '';
     $('#s-pct').textContent = w.pct === null ? '—' : `${w.pct}%`;
     $('#s-nights').textContent = w.nights;
   }
@@ -105,6 +142,7 @@ if (typeof document !== 'undefined') {
     if (!slot) { alert('Too late: this study hall can’t be logged anymore.'); return render(); }
     state.logs[slot.key] = { r: result, note, at: now.toISOString() };
     save();
+    sync();
     $('#hw-form').hidden = true;
     $('#hw-note').value = '';
     render();
@@ -118,8 +156,8 @@ if (typeof document !== 'undefined') {
     $('#hw-error').hidden = true;
     saveLog('hw', note);
   };
-  $('#eve-yes').onclick = () => { state.evening[ymd(new Date())] = true; save(); render(); };
-  $('#eve-no').onclick = () => { state.evening[ymd(new Date())] = false; save(); render(); };
+  $('#eve-yes').onclick = () => { state.evening[ymd(new Date())] = true; save(); render(); sync(); };
+  $('#eve-no').onclick = () => { state.evening[ymd(new Date())] = false; save(); render(); sync(); };
 
   // Schedule editor
   function addRow(s = { day: 1, start: '', end: '' }) {
@@ -166,6 +204,7 @@ if (typeof document !== 'undefined') {
     save();
     $('#settings').hidden = true;
     render();
+    sync();
   };
 
   // 6:50 PM reminder: the phone gives us an address, GitHub sends the notification to it each evening.
@@ -193,6 +232,27 @@ if (typeof document !== 'undefined') {
   });
   if (localStorage.getItem('pushSent')) $('#btn-notify').textContent = '6:50 PM reminder is on ✅';
 
+  // Smart reminders: sends a copy of your progress to your private GitHub settings, so the reminder
+  // knows your real streak, when study hall ends, and whether you've opened the app. Only on the device you connect.
+  async function sync() {
+    const token = localStorage.getItem('ghToken');
+    if (!token) return;
+    const logs = Object.fromEntries(Object.entries(state.logs).map(([k, v]) => [k, { r: v.r }])); // notes stay on your phone
+    try {
+      // ponytail: GitHub caps a variable at 48 KB, roughly 5+ years of study halls
+      await putVar(token, 'STATE', JSON.stringify({ ...state, logs, lastOpen: new Date().toISOString() }));
+      $('#sync-status').textContent = `Smart reminders synced ✓ ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    } catch (err) { $('#sync-status').textContent = `Couldn’t sync: ${err.message}`; }
+  }
+  $('#btn-sync').onclick = () => {
+    const token = prompt('Paste your GitHub token (starts with github_pat_):');
+    if (!token?.trim()) return;
+    localStorage.setItem('ghToken', token.trim());
+    $('#btn-sync').textContent = 'Smart reminders connected ✓';
+    sync();
+  };
+  if (localStorage.getItem('ghToken')) $('#btn-sync').textContent = 'Smart reminders connected ✓';
+
   // Backup
   $('#btn-export').onclick = async () => {
     const file = new File([JSON.stringify(state, null, 2)], `study-hall-backup-${ymd(new Date())}.json`, { type: 'application/json' });
@@ -211,12 +271,14 @@ if (typeof document !== 'undefined') {
       state = data;
       save();
       render();
+      sync();
     } catch { alert('That file isn’t a Study Hall backup.'); }
     e.target.value = '';
   };
 
   render();
+  sync();
   setInterval(render, 30000); // re-check every 30s so windows open/close while the app is open
-  document.addEventListener('visibilitychange', () => document.hidden || render());
+  document.addEventListener('visibilitychange', () => document.hidden || (render(), sync()));
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 }

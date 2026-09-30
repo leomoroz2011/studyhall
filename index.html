@@ -33,6 +33,12 @@
   .row select, .row input { font: inherit; font-size: 16px; padding: 8px 4px; border-radius: 10px; border: 1px solid #ccc; background: var(--card); color: var(--text); min-width: 0; flex: 1; }
   .row.bad input { border: 2px solid var(--red); }
   .row .x { width: auto; padding: 8px 12px; background: transparent; color: var(--red); }
+  .center { text-align: center; }
+  .huge { display: block; font-size: 110px; line-height: 1; margin-top: 8px; }
+  #s-event { font-weight: 600; margin: 12px 0; }
+  #s-event:empty { display: none; }
+  .celebrate { background: linear-gradient(135deg, #f97316, #db2777); color: #fff; font-size: 26px; font-weight: 800; border-radius: 14px; padding: 16px; margin: 0 0 8px; }
+  .celebrate span { font-size: 16px; font-weight: 500; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -40,6 +46,19 @@
 <h1>Study Hall</h1>
 
 <div id="main" hidden>
+  <div class="card center">
+    <p id="celebrate" class="celebrate" hidden>🎉 DAY 7! A FULL WEEK STREAK! 🎉<br><span>Honestly? Proud of you.</span></p>
+    <b id="s-streak" class="huge">0</b>
+    <span class="muted">🔥 homework streak</span>
+    <p id="s-event"></p>
+    <div class="stats">
+      <div><b id="s-best">0</b><span>best ever</span></div>
+      <div><b id="s-freezes">0</b><span>🧊 freezes left</span></div>
+      <div><b id="s-pct">—</b><span>homework this week</span></div>
+    </div>
+    <p class="muted">Night-before nights this week: <b id="s-nights">0</b></p>
+  </div>
+
   <div class="card">
     <h2>Log study hall</h2>
     <div id="log-open">
@@ -70,15 +89,6 @@
     <p id="eve-msg" class="muted"></p>
   </div>
 
-  <div class="card">
-    <h2>Scoreboard</h2>
-    <div class="stats">
-      <div><b id="s-streak">0</b><span>homework streak</span></div>
-      <div><b id="s-pct">—</b><span>homework this week</span></div>
-      <div><b id="s-nights">0</b><span>night-before nights this week</span></div>
-    </div>
-  </div>
-
   <div id="notify-code" class="card" hidden>
     <h2>Last step</h2>
     <p class="muted">Copy this code and send it to GitHub so it knows where to send your reminder.</p>
@@ -87,6 +97,8 @@
   </div>
 
   <button id="btn-notify" class="plain">Turn on 6:50 PM reminder</button>
+  <button id="btn-sync" class="plain">Connect smart reminders</button>
+  <p id="sync-status" class="muted center"></p>
   <button id="btn-edit" class="plain">Edit study hall schedule</button>
   <button id="btn-export" class="plain">Export backup</button>
   <button id="btn-import" class="plain">Restore from backup</button>
