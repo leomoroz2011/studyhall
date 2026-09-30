@@ -89,16 +89,6 @@
     <p id="eve-msg" class="muted"></p>
   </div>
 
-  <div id="notify-code" class="card" hidden>
-    <h2>Last step</h2>
-    <p class="muted">Copy this code and send it to GitHub so it knows where to send your reminder.</p>
-    <textarea id="sub-json" readonly></textarea>
-    <button id="btn-copy-sub">Copy code</button>
-  </div>
-
-  <button id="btn-notify" class="plain">Turn on 6:50 PM reminder</button>
-  <button id="btn-sync" class="plain">Connect smart reminders</button>
-  <p id="sync-status" class="muted center"></p>
   <button id="btn-edit" class="plain">Edit study hall schedule</button>
   <button id="btn-export" class="plain">Export backup</button>
   <button id="btn-import" class="plain">Restore from backup</button>
@@ -112,6 +102,17 @@
   <button id="btn-add" class="plain">+ Add another study hall</button>
   <button id="btn-save-sched">Save schedule</button>
   <button id="btn-cancel" class="plain">Cancel</button>
+
+  <h2 style="margin-top:24px">Reminders</h2>
+  <p class="muted">Only needed if reminders stop arriving.</p>
+  <button id="btn-notify" class="plain">Turn on 6:50 PM reminder</button>
+  <div id="notify-code" hidden>
+    <p class="muted">Copy this code and send it to GitHub so it knows where to send your reminder.</p>
+    <textarea id="sub-json" readonly></textarea>
+    <button id="btn-copy-sub">Copy code</button>
+  </div>
+  <button id="btn-sync" class="plain">Connect smart reminders</button>
+  <p id="sync-status" class="muted center"></p>
 </div>
 
 <script src="app.js"></script>
