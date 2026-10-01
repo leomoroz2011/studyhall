@@ -5,7 +5,12 @@ name: Evening reminder
 on:
   schedule:
     - cron: '*/10 0-4,13-23 * * *'
-  workflow_dispatch: # lets you tap "Run workflow" to send a test
+  workflow_dispatch: # "Run workflow" button sends a test. cron-job.org also uses this, with check=true, at 6:50 and 9:35 PM.
+    inputs:
+      check:
+        description: 'Only send if a reminder is actually due (leave off to send a test)'
+        type: boolean
+        default: false
 concurrency: reminder # never two at once, so it can't double-send
 jobs:
   send:
@@ -19,6 +24,7 @@ jobs:
       - run: node .github/send-reminder.js
         env:
           TZ: America/Denver
+          CHECK: ${{ inputs.check }}
           STATE: ${{ vars.STATE }}
           NOTIFY: ${{ vars.NOTIFY }}
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}

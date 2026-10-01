@@ -5,7 +5,8 @@ const { ymd, at, sweep, slotsOn, scoreboard, putVar } = require('../app.js');
 const msgs = require('./messages.js');
 
 const now = new Date(); // the workflow sets TZ=America/Denver, so this is your local time
-const test = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'; // "Run workflow" button = send one right now
+// "Run workflow" button = send one right now. cron-job.org runs it with check=true, which acts like the timer.
+const test = process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' && process.env.CHECK !== 'true';
 const state = process.env.STATE ? JSON.parse(process.env.STATE) : null; // synced from your phone (null = not connected yet)
 const log = process.env.NOTIFY ? JSON.parse(process.env.NOTIFY) : {}; // what this script sent before
 const today = ymd(now);

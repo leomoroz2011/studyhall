@@ -211,8 +211,8 @@ if (typeof document !== 'undefined') {
       const key = Uint8Array.from(atob(PUSH_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
       const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
       const code = JSON.stringify(sub);
-      // Same code you already sent to GitHub = nothing to do. Only show it if it's new (or the phone changed it).
-      if (code === localStorage.getItem('pushSent')) return alert('Your reminders are already on.');
+      // Same code you copied before = probably nothing to do, but GitHub might still have an older one.
+      if (code === localStorage.getItem('pushSent') && !confirm('Your reminders look on already. Show the code anyway?')) return;
       $('#sub-json').value = code;
       $('#notify-code').hidden = false;
     } catch (err) { alert(`Couldn’t turn on the reminder: ${err.message}`); }
