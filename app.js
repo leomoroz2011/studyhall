@@ -7,6 +7,7 @@ const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const at = (day, hhmm) => { const [h, m] = hhmm.split(':'); return new Date(day.getFullYear(), day.getMonth(), day.getDate(), +h, +m); };
 const fmt = hhmm => { const [h, m] = hhmm.split(':'); return `${(+h % 12) || 12}:${m} ${+h < 12 ? 'AM' : 'PM'}`; };
+const fmtDate = d => { const [y, m, day] = d.split('-'); return new Date(+y, m - 1, +day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }; // Thu, Nov 26
 
 // The study halls on a given day, with the time each one's logging window closes.
 function slotsOn(day, schedule) {
@@ -18,23 +19,36 @@ function slotsOn(day, schedule) {
   }).sort((a, b) => a.end - b.end);
 }
 
+// Days off (breaks, canceled study halls): a list of { from, to } dates, from === to for one day.
+// Older saves and the reminder script may not have the list yet, hence the `|| []`.
+const isDayOff = (state, day) => { const d = ymd(day); return (state.daysOff || []).some(o => o.from <= d && d <= o.to); };
+// The study halls that count on a given day: none on a day off.
+const hallsOn = (state, day) => isDayOff(state, day) ? [] : slotsOn(day, state.schedule);
+
 // Any study hall whose window closed without a log is saved as "missed" (counts as slacked).
 function sweep(state, now) {
   const since = new Date(state.since);
   for (let d = new Date(since.getFullYear(), since.getMonth(), since.getDate()); d <= now; d.setDate(d.getDate() + 1))
-    for (const s of slotsOn(d, state.schedule))
+    for (const s of hallsOn(state, d))
       if (s.close > since && s.close <= now && !state.logs[s.key]) state.logs[s.key] = { r: 'missed' };
 }
 
 const openSlot = (state, now) =>
-  slotsOn(now, state.schedule).find(s => s.end <= now && now < s.close && !state.logs[s.key]);
+  hallsOn(state, now).find(s => s.end <= now && now < s.close && !state.logs[s.key]);
 
 function nextSlot(state, now) {
-  for (let i = 0; i < 8; i++) {
-    const s = slotsOn(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i), state.schedule).find(s => s.end > now);
+  for (let i = 0; i < 366; i++) { // a year ahead, so it can see past a long break
+    const s = hallsOn(state, new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)).find(s => s.end > now);
     if (s) return s;
   }
 }
+
+// Study halls in from..to that the app marked missed on its own ({ r: 'missed' } and nothing else, so no "at").
+// Used when you add a day off in the past. Anything you logged yourself has "at" and is never included.
+const autoMissed = (state, from, to) => Object.keys(state.logs).filter(k => {
+  const l = state.logs[k], d = k.slice(0, 10);
+  return from <= d && d <= to && l.r === 'missed' && Object.keys(l).length === 1;
+});
 
 const mondayOf = d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - (d.getDay() + 6) % 7);
 
@@ -63,7 +77,7 @@ function scoreboard(logs, now) {
   return { streak, best, freezes, last, frozen };
 }
 
-if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, sweep, openSlot, scoreboard, putVar };
+if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, sweep, openSlot, nextSlot, autoMissed, scoreboard, putVar };
 
 // Saves a private setting ("Actions variable") in your GitHub repo. Used by the app to sync and by the reminder script.
 async function putVar(token, name, value) {
@@ -79,7 +93,8 @@ if (typeof document !== 'undefined') {
   const KEY = 'studyhall';
   const $ = s => document.querySelector(s);
   // activities = extra productive stuff per day, myActs = your own activity names (both added later, so older saves lack them)
-  const withDefaults = s => ({ activities: {}, myActs: [], ...s });
+  // daysOff = school breaks / canceled study halls (added later too)
+  const withDefaults = s => ({ activities: {}, myActs: [], daysOff: [], ...s });
   let state = withDefaults(JSON.parse(localStorage.getItem(KEY)) || { schedule: [], logs: {}, evening: {}, since: null });
   const save = () => localStorage.setItem(KEY, JSON.stringify(state));
 
@@ -110,11 +125,13 @@ if (typeof document !== 'undefined') {
     const monday = mondayOf(now), halls = [];
     for (let i = 0; i < 7; i++) halls.push(...slotsOn(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i), state.schedule));
     $('#week-dots').innerHTML = halls.map(s => {
-      const log = state.logs[s.key];
-      const look = log ? (log.r === 'hw' ? 'hw' : sb.frozen.includes(s.key) ? 'frozen' : 'slack') : ymd(s.day) === today ? 'today' : '';
+      const log = state.logs[s.key]; // a log you made before it became a day off still shows (and counts)
+      const look = log ? (log.r === 'hw' ? 'hw' : sb.frozen.includes(s.key) ? 'frozen' : 'slack')
+        : isDayOff(state, s.day) ? 'off' : ymd(s.day) === today ? 'today' : '';
       return `<div class="dot ${look}"><i>${{ hw: CHECK, frozen: SNOW }[look] || ''}</i><span class="label">${DAYS[s.day.getDay()][0]}</span></div>`;
     }).join('');
-    $('#s-halls').textContent = `${halls.filter(s => state.logs[s.key]?.r === 'hw').length} of ${halls.length} halls`;
+    const counted = halls.filter(s => state.logs[s.key] || !isDayOff(state, s.day));
+    $('#s-halls').textContent = `${counted.filter(s => state.logs[s.key]?.r === 'hw').length} of ${counted.length} halls`;
     const acts = Object.entries(state.activities).filter(([d]) => d >= ymd(monday)).reduce((n, [, a]) => n + a.did.length, 0);
     $('#s-acts').textContent = `${acts} ${acts === 1 ? 'activity' : 'activities'} this week`;
 
@@ -132,9 +149,11 @@ if (typeof document !== 'undefined') {
     if (slot) $('#log-time').textContent = `${fmt(slot.start).replace(fmt(slot.endStr).slice(-3), '')}–${fmt(slot.endStr)}`; // 7:30–9:30 PM
     else if (!eve && !act) {
       const n = nextSlot(state, now), hallLater = n && ymd(n.day) === today, eveLater = !eveOpen && unanswered;
-      $('#done-title').textContent = hallLater || eveLater ? 'Nothing to log yet' : 'All logged for today';
-      $('#done-msg').textContent = [eveLater && `Evening check opens at ${fmt(EVENING_OPENS)}.`,
-        n && `Next study hall: ${hallLater ? 'today' : DAYS[n.day.getDay()]} ${fmt(n.start)}–${fmt(n.endStr)}.`].filter(Boolean).join(' ');
+      const soon = n && n.day - now < 6 * 864e5; // within the week: "Mon", further away (after a break): "Mon, Jan 5"
+      const next = n && `Next study hall: ${hallLater ? 'today' : soon ? DAYS[n.day.getDay()] : fmtDate(ymd(n.day))} ${fmt(n.start)}–${fmt(n.endStr)}.`;
+      const off = isDayOff(state, now);
+      $('#done-title').textContent = off ? 'Day off' : hallLater || eveLater ? 'Nothing to log yet' : 'All logged for today';
+      $('#done-msg').textContent = off ? next || '' : [eveLater && `Evening check opens at ${fmt(EVENING_OPENS)}.`, next].filter(Boolean).join(' ');
     }
   }
 
@@ -215,14 +234,13 @@ if (typeof document !== 'undefined') {
     const frozen = scoreboard(state.logs, new Date()).frozen;
     const days = [...new Set([...Object.keys(state.logs).map(k => k.slice(0, 10)), ...Object.keys(state.activities), ...Object.keys(state.evening)])].sort().reverse();
     $('#hist-list').innerHTML = days.map(d => {
-      const [y, m, day] = d.split('-');
       const halls = Object.entries(state.logs).filter(([k]) => k.startsWith(d)).map(([k, l]) =>
         l.r === 'hw' ? `<p><b class="hw">Homework</b>${l.note ? ` — ${esc(l.note)}` : ''}</p>`
         : `<p><b class="${frozen.includes(k) ? 'frozen' : ''}">${l.r === 'slack' ? 'Slacked' : 'Missed'}${frozen.includes(k) ? ' (freeze used)' : ''}</b></p>`);
       const a = state.activities[d];
       const extra = a?.did.length ? `<p>${a.did.map(esc).join(', ')}${a.note ? ` — ${esc(a.note)}` : ''}</p>` : '';
       const eve = d in state.evening ? `<p class="sub">Old homework that night: ${state.evening[d] ? 'yes' : 'no'}</p>` : '';
-      return `<div class="card"><span class="label">${new Date(+y, m - 1, +day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}</span>${halls.join('')}${extra}${eve}</div>`;
+      return `<div class="card"><span class="label">${fmtDate(d).toUpperCase()}</span>${halls.join('')}${extra}${eve}</div>`;
     }).join('') || '<p class="sub">Nothing logged yet.</p>';
     $('#history').hidden = false;
     $('#main').hidden = true;
@@ -246,6 +264,7 @@ if (typeof document !== 'undefined') {
     $('#rows').append(row);
   }
   function showSettings() {
+    renderDaysOff();
     $('#rows').innerHTML = '';
     (state.schedule.length ? state.schedule : [undefined]).forEach(addRow);
     $('#settings').hidden = false;
@@ -281,6 +300,36 @@ if (typeof document !== 'undefined') {
     $('#settings').hidden = true;
     render();
     sync();
+  };
+
+  // Days off: current and upcoming ones are listed (past ones stay saved, just not shown)
+  function renderDaysOff() {
+    const today = ymd(new Date());
+    $('#off-list').innerHTML = '';
+    for (const o of state.daysOff.filter(o => o.to >= today).sort((a, b) => a.from < b.from ? -1 : 1)) {
+      const row = document.createElement('div');
+      row.className = 'row between';
+      row.innerHTML = `<span>${fmtDate(o.from)}${o.to !== o.from ? ` – ${fmtDate(o.to)}` : ''}</span><button class="x" aria-label="Remove">✕</button>`;
+      row.querySelector('.x').onclick = () => {
+        if (o.from < today && !confirm('Study halls on past dates in this range will count as missed again.')) return;
+        state.daysOff = state.daysOff.filter(x => x !== o); // sweep() marks those past ones missed on the next check
+        save(); renderDaysOff(); render(); sync();
+      };
+      $('#off-list').append(row);
+    }
+  }
+  $('#btn-add-off').onclick = () => {
+    const from = $('#off-from').value, to = $('#off-to').value || from;
+    if (!from) return alert('Pick the first day off (From).');
+    if (to < from) return alert('The "To" date can’t be before the "From" date.');
+    state.daysOff.push({ from, to });
+    // If it's in the past, the app may already have marked those study halls missed. Offer to take that back.
+    const marks = autoMissed(state, from, to);
+    if (marks.length && confirm(`${marks.length} study hall${marks.length === 1 ? ' in these dates was' : 's in these dates were'} marked missed. Remove ${marks.length === 1 ? 'that mark' : 'those marks'}?`))
+      for (const k of marks) delete state.logs[k];
+    save();
+    $('#off-from').value = $('#off-to').value = '';
+    renderDaysOff(); render(); sync();
   };
 
   // Reminders: the phone gives us an address, GitHub sends the notifications to it.

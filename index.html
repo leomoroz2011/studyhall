@@ -51,6 +51,7 @@
   .dot.frozen i { background: var(--ice-bg); color: var(--ice); }
   .dot.slack i { background: #4A4642; }
   .dot.today i { background: none; border: 2px solid var(--text); }
+  .dot.off i { background: none; border: 2px dashed var(--line); }
   .bottom { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
   .bottom .card { display: flex; flex-direction: column; gap: 12px; }
   textarea { width: 100%; font: inherit; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-height: 64px; resize: none; }
@@ -73,6 +74,9 @@
   .row { display: flex; gap: 6px; align-items: center; }
   .row select, .row input { font: inherit; font-size: 16px; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; flex: 1; color-scheme: dark; }
   .row.bad input { border: 2px solid var(--red); }
+  .dates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .dates label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .dates input { font: 16px 'Instrument Sans', system-ui, sans-serif; letter-spacing: 0; padding: 10px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); width: 100%; min-width: 0; color-scheme: dark; min-height: 44px; }
   .row .x { width: auto; min-height: 44px; padding: 0 12px; background: none; border: 0; color: var(--red); font-size: 18px; }
   /* Talk-to-type button inside a text box */
   .say { position: relative; }
@@ -184,6 +188,17 @@
     <div id="rows"></div>
     <button id="btn-add" class="link">+ Add another study hall</button>
     <button id="btn-save-sched" class="primary">Save schedule</button>
+  </div>
+
+  <div class="card">
+    <h2>Days off</h2>
+    <p class="sub">Breaks and canceled study halls. They don't count as missed and don't use freezes.</p>
+    <div class="dates">
+      <label class="label">FROM<input id="off-from" type="date"></label>
+      <label class="label">TO (OPTIONAL)<input id="off-to" type="date"></label>
+    </div>
+    <button id="btn-add-off" class="outline">Add day off</button>
+    <div id="off-list"></div>
   </div>
 
   <div class="card">

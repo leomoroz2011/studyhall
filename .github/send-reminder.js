@@ -1,7 +1,7 @@
 // Run by GitHub every 10 minutes from ~6 AM to 10 PM (see workflows/reminder.yml).
 // Decides whether a reminder is due, writes it with your real streak, and sends it to your devices.
 const webpush = require('web-push');
-const { ymd, at, sweep, slotsOn, scoreboard, putVar } = require('../app.js');
+const { ymd, at, sweep, openSlot, scoreboard, putVar } = require('../app.js');
 const msgs = require('./messages.js');
 
 const now = new Date(); // the workflow sets TZ=America/Denver, so this is your local time
@@ -20,8 +20,8 @@ if (state) sweep(state, now);
 const quiet = now < at(now, '07:00') || now >= at(now, '22:00');
 if (test) due = 'eve';
 else if (!quiet) {
-  const sh = state && !log.sent.some(k => k !== 'eve') &&
-    slotsOn(now, state.schedule).find(s => s.end <= now && now < s.close && !state.logs[s.key]); // ended, not logged yet
+  // a study hall that ended and isn't logged yet (openSlot skips days off, so no reminders during a break)
+  const sh = state && !log.sent.some(k => k !== 'eve') && openSlot(state, now);
   if (now >= at(now, '18:50') && now < at(now, '19:50') && !log.sent.includes('eve') && !(state && today in state.evening))
     due = 'eve';
   else if (sh) due = sh.key;
