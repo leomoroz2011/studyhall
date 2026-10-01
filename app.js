@@ -78,7 +78,9 @@ async function putVar(token, name, value) {
 if (typeof document !== 'undefined') {
   const KEY = 'studyhall';
   const $ = s => document.querySelector(s);
-  let state = JSON.parse(localStorage.getItem(KEY)) || { schedule: [], logs: {}, evening: {}, since: null };
+  // activities = extra productive stuff per day, myActs = your own activity names (both added later, so older saves lack them)
+  const withDefaults = s => ({ activities: {}, myActs: [], ...s });
+  let state = withDefaults(JSON.parse(localStorage.getItem(KEY)) || { schedule: [], logs: {}, evening: {}, since: null });
   const save = () => localStorage.setItem(KEY, JSON.stringify(state));
 
   const CHECK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -88,7 +90,7 @@ if (typeof document !== 'undefined') {
     const now = new Date(), today = ymd(now);
     const setUp = state.schedule.length > 0;
     if (setUp) { sweep(state, now); save(); }
-    $('#main').hidden = !setUp || !$('#settings').hidden;
+    $('#main').hidden = !setUp || !$('#settings').hidden || !$('#history').hidden;
     if (!setUp) { if ($('#settings').hidden) showSettings(); return; } // don't wipe rows you're typing in
 
     // Streak
@@ -113,16 +115,22 @@ if (typeof document !== 'undefined') {
       return `<div class="dot ${look}"><i>${{ hw: CHECK, frozen: SNOW }[look] || ''}</i><span class="label">${DAYS[s.day.getDay()][0]}</span></div>`;
     }).join('');
     $('#s-halls').textContent = `${halls.filter(s => state.logs[s.key]?.r === 'hw').length} of ${halls.length} halls`;
+    const acts = Object.entries(state.activities).filter(([d]) => d >= ymd(monday)).reduce((n, [, a]) => n + a.did.length, 0);
+    $('#s-acts').textContent = `${acts} ${acts === 1 ? 'activity' : 'activities'} this week`;
 
-    // Bottom card: log a study hall, else the evening check, else "nothing to do"
+    // Bottom card: log a study hall, else "anything else productive?", else the evening check, else "nothing to do"
     const slot = openSlot(state, now);
+    const loggedToday = Object.entries(state.logs).some(([k, l]) => k.startsWith(today) && l.at); // you logged it (not auto-missed)
+    const act = !slot && loggedToday && !state.activities[today];
     const unanswered = state.evening[today] === undefined, eveOpen = now >= at(now, EVENING_OPENS);
-    const eve = !slot && eveOpen && unanswered;
+    const eve = !slot && !act && eveOpen && unanswered;
     $('#log-card').hidden = !slot;
+    $('#act-card').hidden = !act;
+    if (act) renderChips();
     $('#eve-card').hidden = !eve;
-    $('#done-card').hidden = !!slot || eve;
+    $('#done-card').hidden = !!slot || act || eve;
     if (slot) $('#log-time').textContent = `${fmt(slot.start).replace(fmt(slot.endStr).slice(-3), '')}–${fmt(slot.endStr)}`; // 7:30–9:30 PM
-    else if (!eve) {
+    else if (!eve && !act) {
       const n = nextSlot(state, now), hallLater = n && ymd(n.day) === today, eveLater = !eveOpen && unanswered;
       $('#done-title').textContent = hallLater || eveLater ? 'Nothing to log yet' : 'All logged for today';
       $('#done-msg').textContent = [eveLater && `Evening check opens at ${fmt(EVENING_OPENS)}.`,
@@ -147,6 +155,81 @@ if (typeof document !== 'undefined') {
     $('#hw-error').hidden = true;
     saveLog('hw', note);
   };
+  // "Anything else productive today?" Tap activities, add details, save (or skip).
+  const picked = new Set();
+  function renderChips() {
+    $('#chips').innerHTML = '';
+    for (const name of ['Workout', 'Business', 'App', 'Reading', ...state.myActs]) {
+      const chip = document.createElement('button');
+      chip.textContent = name;
+      chip.className = picked.has(name) ? 'on' : '';
+      chip.onclick = () => { picked.has(name) ? picked.delete(name) : picked.add(name); renderChips(); };
+      $('#chips').append(chip);
+    }
+    const add = document.createElement('button');
+    add.textContent = '+ Your own';
+    add.onclick = () => {
+      const name = prompt('Name it (e.g. Guitar, Running):')?.trim();
+      if (!name) return;
+      if (!state.myActs.includes(name)) { state.myActs.push(name); save(); }
+      picked.add(name);
+      renderChips();
+    };
+    $('#chips').append(add);
+  }
+  const saveActs = did => {
+    state.activities[ymd(new Date())] = { did, note: did.length ? $('#act-note').value.trim() : '' };
+    save();
+    picked.clear();
+    $('#act-note').value = '';
+    render();
+  };
+  $('#act-save').onclick = () => saveActs([...picked]);
+  $('#act-skip').onclick = () => saveActs([]);
+
+  // Talk instead of typing (iPhone may block this in home-screen apps; then the keyboard mic still works)
+  const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+  for (const btn of document.querySelectorAll('.mic')) {
+    const box = btn.previousElementSibling;
+    btn.onclick = () => {
+      if (!Speech) return alert('Voice typing isn’t available here. Tap the mic on your keyboard instead (next to the space bar).');
+      if (btn.rec) return btn.rec.stop(); // tap again to stop
+      const rec = btn.rec = new Speech(), before = box.value.trim();
+      rec.lang = 'en-US';
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.onresult = e => { box.value = [before, [...e.results].map(r => r[0].transcript).join('')].filter(Boolean).join(' '); };
+      rec.onerror = e => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed')
+          alert('Your iPhone blocked voice typing here. Tap the mic on your keyboard instead (next to the space bar).');
+      };
+      rec.onend = () => { btn.rec = null; btn.classList.remove('on'); };
+      btn.classList.add('on');
+      rec.start();
+    };
+  }
+
+  // History: every day, newest first
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  $('#btn-history').onclick = () => {
+    const frozen = scoreboard(state.logs, new Date()).frozen;
+    const days = [...new Set([...Object.keys(state.logs).map(k => k.slice(0, 10)), ...Object.keys(state.activities), ...Object.keys(state.evening)])].sort().reverse();
+    $('#hist-list').innerHTML = days.map(d => {
+      const [y, m, day] = d.split('-');
+      const halls = Object.entries(state.logs).filter(([k]) => k.startsWith(d)).map(([k, l]) =>
+        l.r === 'hw' ? `<p><b class="hw">Homework</b>${l.note ? ` — ${esc(l.note)}` : ''}</p>`
+        : `<p><b class="${frozen.includes(k) ? 'frozen' : ''}">${l.r === 'slack' ? 'Slacked' : 'Missed'}${frozen.includes(k) ? ' (freeze used)' : ''}</b></p>`);
+      const a = state.activities[d];
+      const extra = a?.did.length ? `<p>${a.did.map(esc).join(', ')}${a.note ? ` — ${esc(a.note)}` : ''}</p>` : '';
+      const eve = d in state.evening ? `<p class="sub">Old homework that night: ${state.evening[d] ? 'yes' : 'no'}</p>` : '';
+      return `<div class="card"><span class="label">${new Date(+y, m - 1, +day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}</span>${halls.join('')}${extra}${eve}</div>`;
+    }).join('') || '<p class="sub">Nothing logged yet.</p>';
+    $('#history').hidden = false;
+    $('#main').hidden = true;
+    scrollTo(0, 0);
+  };
+  $('#hist-done').onclick = () => { $('#history').hidden = true; render(); };
+
   $('#eve-yes').onclick = () => { state.evening[ymd(new Date())] = true; save(); render(); sync(); };
   $('#eve-no').onclick = () => { state.evening[ymd(new Date())] = false; save(); render(); sync(); };
 
@@ -233,7 +316,8 @@ if (typeof document !== 'undefined') {
     const logs = Object.fromEntries(Object.entries(state.logs).map(([k, v]) => [k, { r: v.r }])); // notes stay on your phone
     try {
       // ponytail: GitHub caps a variable at 48 KB, roughly 5+ years of study halls
-      await putVar(token, 'STATE', JSON.stringify({ ...state, logs, lastOpen: new Date().toISOString() }));
+      const { activities, myActs, ...rest } = state; // activities stay on your phone too
+      await putVar(token, 'STATE', JSON.stringify({ ...rest, logs, lastOpen: new Date().toISOString() }));
       $('#sync-status').textContent = `Synced ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
     } catch (err) { $('#sync-status').textContent = `Couldn’t sync: ${err.message}`; }
   }
@@ -261,7 +345,7 @@ if (typeof document !== 'undefined') {
       const data = JSON.parse(await e.target.files[0].text());
       if (!Array.isArray(data.schedule) || !data.logs || !data.evening) throw 0;
       if (!confirm('Replace everything in the app with this backup?')) return;
-      state = data;
+      state = withDefaults(data);
       save();
       $('#settings').hidden = true; // back to the home screen (also after a fresh re-install, where Done is hidden)
       render();

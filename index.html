@@ -74,6 +74,24 @@
   .row select, .row input { font: inherit; font-size: 16px; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-width: 0; flex: 1; color-scheme: dark; }
   .row.bad input { border: 2px solid var(--red); }
   .row .x { width: auto; min-height: 44px; padding: 0 12px; background: none; border: 0; color: var(--red); font-size: 18px; }
+  /* Talk-to-type button inside a text box */
+  .say { position: relative; }
+  .say textarea { padding-right: 56px; }
+  .mic { position: absolute; right: 6px; bottom: 10px; width: 44px; min-height: 44px; height: 44px; padding: 0; border-radius: 50%; border: 0; background: #2A2724; color: var(--muted); display: grid; place-items: center; }
+  .mic.on { background: var(--orange); color: var(--bg); }
+
+  /* Activity chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  #act-note { min-height: 52px; }
+  #act-card { gap: 10px; }
+  .chips button { width: auto; min-height: 44px; font-size: 16px; padding: 0 14px; border-radius: 99px; background: none; color: var(--text); border: 2px solid var(--line); }
+  .chips button.on { background: var(--orange); color: var(--bg); border-color: var(--orange); }
+
+  /* History */
+  #history { display: flex; flex-direction: column; gap: 12px; }
+  #hist-list { display: flex; flex-direction: column; gap: 10px; }
+  #hist-list .card { display: flex; flex-direction: column; gap: 6px; }
+  #hist-list .hw { color: var(--orange); } #hist-list .frozen { color: var(--ice); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -84,6 +102,7 @@
     <h1>Clutch</h1>
     <div class="between" style="gap:4px">
       <span class="pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 3 3-3M9 20l3-3 3 3"/></svg><span id="s-freezes">1 freeze left</span></span>
+      <button id="btn-history" class="icon-btn" aria-label="History"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
       <button id="btn-gear" class="icon-btn" aria-label="Settings"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </div>
   </div>
@@ -102,17 +121,28 @@
   <div class="card">
     <div class="between"><span class="label">THIS WEEK</span><span id="s-halls" class="mono"></span></div>
     <div id="week-dots" class="dots"></div>
+    <p id="s-acts" class="mono" style="margin-top:12px"></p>
   </div>
 
   <div class="bottom">
     <div id="log-card" class="card">
       <div class="between"><h2>Study hall just ended</h2><span id="log-time" class="mono"></span></div>
       <label class="label" for="hw-note">WHAT DID YOU WORK ON?</label>
-      <textarea id="hw-note" placeholder="e.g. math worksheet 4"></textarea>
+      <div class="say"><textarea id="hw-note" placeholder="e.g. math worksheet 4"></textarea><button class="mic" aria-label="Talk instead of typing"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg></button></div>
       <p id="hw-error" class="error" hidden>Type what you worked on first.</p>
       <div class="btns">
         <button id="btn-hw" class="primary">Homework</button>
         <button id="btn-slack" class="outline">Slacked</button>
+      </div>
+    </div>
+
+    <div id="act-card" class="card">
+      <h2>Anything else productive today?</h2>
+      <div id="chips" class="chips"></div>
+      <div class="say"><textarea id="act-note" placeholder="Details (optional)"></textarea><button class="mic" aria-label="Talk instead of typing"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg></button></div>
+      <div class="btns">
+        <button id="act-save" class="primary">Save</button>
+        <button id="act-skip" class="outline">Skip</button>
       </div>
     </div>
 
@@ -132,6 +162,14 @@
 
     <p class="footer mono">Logging closes 4 hours after the bell, or at midnight.</p>
   </div>
+</div>
+
+<div id="history" hidden>
+  <div class="between">
+    <h1>History</h1>
+    <button id="hist-done" class="link" style="width:auto">Done</button>
+  </div>
+  <div id="hist-list"></div>
 </div>
 
 <div id="settings" hidden>
