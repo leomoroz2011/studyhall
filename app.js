@@ -367,22 +367,28 @@ if (typeof document !== 'undefined') {
     $('#btn-notify').textContent = on ? 'Reminders are on ✓' : 'Turn on reminders';
     $('#btn-test').hidden = !on;
   };
+  // iPhone only allows asking for notifications right at the tap, so everything else is ready beforehand.
+  const pushKey = Uint8Array.from(atob(PUSH_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+  let reg = null, oldSub = null;
+  navigator.serviceWorker?.ready.then(async r => { reg = r; oldSub = await r.pushManager?.getSubscription(); });
   $('#btn-notify').onclick = async () => {
     if (!('PushManager' in window)) return alert('Open Clutch from your home-screen icon first, then tap this again.');
+    if (!reg) return alert('Clutch is still loading. Try again in a second.');
     try {
-      if (await Notification.requestPermission() !== 'granted')
-        return alert('Notifications are off. Turn them on in Settings → Notifications → Clutch.');
-      const reg = await navigator.serviceWorker.ready;
-      await (await reg.pushManager.getSubscription())?.unsubscribe(); // start fresh (also replaces old GitHub-era ones)
-      const key = Uint8Array.from(atob(PUSH_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-      await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      if (oldSub) await oldSub.unsubscribe(); // start fresh (permission was already given, so the wait is fine)
+      // first thing after the tap: this shows the "Allow notifications?" question if needed
+      oldSub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushKey });
       localStorage.setItem('reminders', 'on');
       if (!await sync()) return alert($('#sync-status').textContent);
       showOn(true);
       await post('/test', {});
       alert('Reminders are on. You should get a test notification now.');
-    } catch (err) { alert(`Couldn’t turn on reminders: ${err.message}`); }
+    } catch (err) {
+      alert(Notification.permission === 'denied' ? 'Notifications are off. Turn them on in Settings → Notifications → Clutch.'
+        : `Couldn’t turn on reminders: ${err.message}`);
+    }
   };
+
   $('#btn-test').onclick = () => post('/test', {}).then(() => alert('Sent. It should show up in a few seconds.'), err => alert(`Couldn’t send: ${err.message}`));
   showOn(localStorage.getItem('reminders') === 'on');
   localStorage.removeItem('ghToken'); // old GitHub key from before the reminder server, not needed anymore
