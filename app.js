@@ -106,17 +106,7 @@ function oldBest(logs, now) {
 const isShareMilestone = (streak, prevBest, ui = {}) => streak > 0 && ui.shareShownFor !== streak &&
   ([7, 14, 30, 50, 100].includes(streak) || streak % 50 === 0 || (streak >= 7 && streak === prevBest + 1));
 
-if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, sweep, openSlot, nextSlot, autoMissed, scoreboard, putVar, weekDots, shareText, oldBest, isShareMilestone };
-
-// Saves a private setting ("Actions variable") in your GitHub repo. Used by the app to sync and by the reminder script.
-async function putVar(token, name, value) {
-  const url = 'https://api.github.com/repos/leomoroz2011/studyhall/actions/variables';
-  const req = method => fetch(method === 'POST' ? url : `${url}/${name}`, { method, body: JSON.stringify({ name, value }),
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
-  let r = await req('PATCH');
-  if (r.status === 404) r = await req('POST'); // first time: it doesn't exist yet
-  if (!r.ok) throw new Error(r.status === 401 ? 'the token is wrong or expired' : `GitHub said ${r.status}`);
-}
+if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, sweep, openSlot, nextSlot, autoMissed, scoreboard, weekDots, shareText, oldBest, isShareMilestone };
 
 if (typeof document !== 'undefined') {
   const KEY = 'studyhall';
@@ -367,52 +357,51 @@ if (typeof document !== 'undefined') {
     renderDaysOff(); render(); sync();
   };
 
-  // Reminders: the phone gives us an address, GitHub sends the notifications to it.
-  const PUSH_KEY = 'BKnyV02fu2IcOi6q4_Oe1Q9XYG0P4gjLHRZCzh0xnfJbIfmSZOH8tVELvLWGK6Bb97q-LCqvUc6I6aDcjsQu6lQ';
+  // Reminders: one tap signs this phone up with Clutch's reminder server (worker/index.js), which sends them.
+  const SERVER = 'https://clutch.clutch-reminders.workers.dev';
+  const PUSH_KEY = 'BOKT6BaTQ5jhqn0oVO0jdNCnnmr6AhZQhwb-eb3BQHnXxYzTDdZ6Fd8LxP-bYcvBF6vG7YGAIOMEZW0FPYHwypk';
+  const myId = () => localStorage.getItem('clutchId') || (localStorage.setItem('clutchId', crypto.randomUUID()), localStorage.getItem('clutchId'));
+  const post = (path, data) => fetch(SERVER + path, { method: 'POST', body: JSON.stringify({ id: myId(), ...data }) })
+    .then(async r => { if (!r.ok) throw new Error(await r.text()); });
+  const showOn = on => {
+    $('#btn-notify').textContent = on ? 'Reminders are on ✓' : 'Turn on reminders';
+    $('#btn-test').hidden = !on;
+  };
   $('#btn-notify').onclick = async () => {
     if (!('PushManager' in window)) return alert('Open Clutch from your home-screen icon first, then tap this again.');
     try {
       if (await Notification.requestPermission() !== 'granted')
         return alert('Notifications are off. Turn them on in Settings → Notifications → Clutch.');
       const reg = await navigator.serviceWorker.ready;
+      await (await reg.pushManager.getSubscription())?.unsubscribe(); // start fresh (also replaces old GitHub-era ones)
       const key = Uint8Array.from(atob(PUSH_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
-      const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-      const code = JSON.stringify(sub);
-      // Same code you copied before = probably nothing to do, but GitHub might still have an older one.
-      if (code === localStorage.getItem('pushSent') && !confirm('Your reminders look on already. Show the code anyway?')) return;
-      $('#sub-json').value = code;
-      $('#notify-code').hidden = false;
-    } catch (err) { alert(`Couldn’t turn on the reminder: ${err.message}`); }
+      await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      localStorage.setItem('reminders', 'on');
+      if (!await sync()) return alert($('#sync-status').textContent);
+      showOn(true);
+      await post('/test', {});
+      alert('Reminders are on. You should get a test notification now.');
+    } catch (err) { alert(`Couldn’t turn on reminders: ${err.message}`); }
   };
-  $('#btn-copy-sub').onclick = () => navigator.clipboard.writeText($('#sub-json').value).then(() => {
-    localStorage.setItem('pushSent', $('#sub-json').value);
-    $('#notify-code').hidden = true;
-    $('#btn-notify').textContent = 'Reminders are on ✓';
-    alert('Copied! Paste it into GitHub (the PUSH_SUBSCRIPTION secret) and you’re done.');
-  });
-  if (localStorage.getItem('pushSent')) $('#btn-notify').textContent = 'Reminders are on ✓';
+  $('#btn-test').onclick = () => post('/test', {}).then(() => alert('Sent. It should show up in a few seconds.'), err => alert(`Couldn’t send: ${err.message}`));
+  showOn(localStorage.getItem('reminders') === 'on');
+  localStorage.removeItem('ghToken'); // old GitHub key from before the reminder server, not needed anymore
+  localStorage.removeItem('pushSent');
 
-  // Smart reminders: sends a copy of your progress to your private GitHub settings, so the reminder
-  // knows your real streak, when study hall ends, and whether you've opened the app. Only on the device you connect.
+  // Sends your progress to the reminder server, so reminders know your real streak, when study hall ends,
+  // and whether you've opened the app. Notes, activities and your own activity names stay on your phone.
   async function sync() {
-    const token = localStorage.getItem('ghToken');
-    if (!token) return;
-    const logs = Object.fromEntries(Object.entries(state.logs).map(([k, v]) => [k, { r: v.r }])); // notes stay on your phone
+    if (localStorage.getItem('reminders') !== 'on') return;
     try {
-      // ponytail: GitHub caps a variable at 48 KB, roughly 5+ years of study halls
-      const { activities, myActs, ...rest } = state; // activities stay on your phone too
-      await putVar(token, 'STATE', JSON.stringify({ ...rest, logs, lastOpen: new Date().toISOString() }));
+      const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
+      if (!sub) { localStorage.removeItem('reminders'); showOn(false); return; } // notifications were turned off
+      const logs = Object.fromEntries(Object.entries(state.logs).map(([k, v]) => [k, { r: v.r }]));
+      const { activities, myActs, ...rest } = state;
+      await post('/sync', { tz: Intl.DateTimeFormat().resolvedOptions().timeZone, sub, state: { ...rest, logs, lastOpen: new Date().toISOString() } });
       $('#sync-status').textContent = `Synced ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+      return true;
     } catch (err) { $('#sync-status').textContent = `Couldn’t sync: ${err.message}`; }
   }
-  $('#btn-sync').onclick = () => {
-    const token = prompt('Paste your GitHub token (starts with github_pat_):');
-    if (!token?.trim()) return;
-    localStorage.setItem('ghToken', token.trim());
-    $('#btn-sync').textContent = 'Smart reminders connected ✓';
-    sync();
-  };
-  if (localStorage.getItem('ghToken')) $('#btn-sync').textContent = 'Smart reminders connected ✓';
 
   // Backup
   $('#btn-export').onclick = async () => {
