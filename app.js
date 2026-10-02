@@ -403,6 +403,15 @@ if (typeof document !== 'undefined') {
     e.target.value = '';
   };
 
+  // Share: only the link and a how-to line, never any of your data
+  $('#btn-share').onclick = () => {
+    const url = location.origin + location.pathname; // no ?query or #hash
+    const text = 'Clutch: tracks if you actually use study hall. Open this link in Safari, tap Share, then Add to Home Screen.';
+    const copy = () => navigator.clipboard.writeText(`${text} ${url}`).then(() => alert('Link copied. Paste it in a text to a friend.'));
+    if (!navigator.share) return copy();
+    navigator.share({ text, url }).catch(err => err.name === 'AbortError' || copy()); // canceled = do nothing
+  };
+
   render();
   sync();
   setInterval(render, 30000); // re-check every 30s so windows open/close while the app is open
