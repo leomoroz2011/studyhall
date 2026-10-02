@@ -77,7 +77,36 @@ function scoreboard(logs, now) {
   return { streak, best, freezes, last, frozen };
 }
 
-if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, sweep, openSlot, nextSlot, autoMissed, scoreboard, putVar };
+// This week's circles, one per study hall, Monday to Sunday. Used by the home screen and the share image.
+function weekDots(state, now, frozen) {
+  const monday = mondayOf(now), today = ymd(now), halls = [];
+  for (let i = 0; i < 7; i++) halls.push(...slotsOn(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i), state.schedule));
+  return halls.map(s => {
+    const log = state.logs[s.key]; // a log you made before it became a day off still shows (and counts)
+    const look = log ? (log.r === 'hw' ? 'hw' : frozen.includes(s.key) ? 'frozen' : 'slack')
+      : isDayOff(state, s.day) ? 'off' : ymd(s.day) === today ? 'today' : '';
+    return { s, look, letter: DAYS[s.day.getDay()][0] };
+  });
+}
+
+// Sharing. Only the streak number, best, and week circles are ever shared: never notes, activities, or the schedule.
+const APP_URL = 'https://leomoroz2011.github.io/studyhall/';
+const shareText = n => `My study hall streak: ${n} 🔥 Track yours: ${APP_URL}`;
+// Your best streak before the current one started (so a new record only counts on its first day).
+// ponytail: replays the scoreboard per log, fine for a few hundred study halls
+function oldBest(logs, now) {
+  const keys = Object.keys(logs).sort();
+  for (let j = keys.length; j > 0; j--) {
+    const sb = scoreboard(Object.fromEntries(keys.slice(0, j - 1).map(k => [k, logs[k]])), now);
+    if (!sb.streak) return sb.best;
+  }
+  return 0;
+}
+// Show the "Share streak" button? On 7, 14, 30, 50, 100, every 50 after, or the first day of a new best (7+). Once per value.
+const isShareMilestone = (streak, prevBest, ui = {}) => streak > 0 && ui.shareShownFor !== streak &&
+  ([7, 14, 30, 50, 100].includes(streak) || streak % 50 === 0 || (streak >= 7 && streak === prevBest + 1));
+
+if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, sweep, openSlot, nextSlot, autoMissed, scoreboard, putVar, weekDots, shareText, oldBest, isShareMilestone };
 
 // Saves a private setting ("Actions variable") in your GitHub repo. Used by the app to sync and by the reminder script.
 async function putVar(token, name, value) {
@@ -121,15 +150,16 @@ if (typeof document !== 'undefined') {
     }[sb.last] || '';
     $('#s-event').className = sb.last === 'broke' ? 'sub' : 'ice';
 
+    // Tap the streak to open History. Share button on milestone days (hidden for good once tapped or closed).
+    $('#hero-tap').setAttribute('aria-label', `Streak ${sb.streak}. Open history`);
+    const prev = sb.streak >= 7 && sb.streak === sb.best ? oldBest(state.logs, now) : 0;
+    const reachedToday = Object.keys(state.logs).sort().pop()?.startsWith(today);
+    $('#milestone').hidden = !(reachedToday && isShareMilestone(sb.streak, prev, readUI()));
+
     // This week: one circle per study hall, Monday to Sunday
-    const monday = mondayOf(now), halls = [];
-    for (let i = 0; i < 7; i++) halls.push(...slotsOn(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i), state.schedule));
-    $('#week-dots').innerHTML = halls.map(s => {
-      const log = state.logs[s.key]; // a log you made before it became a day off still shows (and counts)
-      const look = log ? (log.r === 'hw' ? 'hw' : sb.frozen.includes(s.key) ? 'frozen' : 'slack')
-        : isDayOff(state, s.day) ? 'off' : ymd(s.day) === today ? 'today' : '';
-      return `<div class="dot ${look}"><i>${{ hw: CHECK, frozen: SNOW }[look] || ''}</i><span class="label">${DAYS[s.day.getDay()][0]}</span></div>`;
-    }).join('');
+    const monday = mondayOf(now), dots = weekDots(state, now, sb.frozen), halls = dots.map(d => d.s);
+    $('#week-dots').innerHTML = dots.map(({ look, letter }) =>
+      `<div class="dot ${look}"><i>${{ hw: CHECK, frozen: SNOW }[look] || ''}</i><span class="label">${letter}</span></div>`).join('');
     const counted = halls.filter(s => state.logs[s.key] || !isDayOff(state, s.day));
     $('#s-halls').textContent = `${counted.filter(s => state.logs[s.key]?.r === 'hw').length} of ${counted.length} halls`;
     const acts = Object.entries(state.activities).filter(([d]) => d >= ymd(monday)).reduce((n, [, a]) => n + a.did.length, 0);
@@ -155,6 +185,7 @@ if (typeof document !== 'undefined') {
       $('#done-title').textContent = off ? 'Day off' : hallLater || eveLater ? 'Nothing to log yet' : 'All logged for today';
       $('#done-msg').textContent = off ? next || '' : [eveLater && `Evening check opens at ${fmt(EVENING_OPENS)}.`, next].filter(Boolean).join(' ');
     }
+    prepCard();
   }
 
   function saveLog(result, note) {
@@ -230,7 +261,8 @@ if (typeof document !== 'undefined') {
 
   // History: every day, newest first
   const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-  $('#btn-history').onclick = () => {
+  function openHistory() {
+    prepCard();
     const frozen = scoreboard(state.logs, new Date()).frozen;
     const days = [...new Set([...Object.keys(state.logs).map(k => k.slice(0, 10)), ...Object.keys(state.activities), ...Object.keys(state.evening)])].sort().reverse();
     $('#hist-list').innerHTML = days.map(d => {
@@ -245,7 +277,9 @@ if (typeof document !== 'undefined') {
     $('#history').hidden = false;
     $('#main').hidden = true;
     scrollTo(0, 0);
-  };
+  }
+  $('#hero-tap').onclick = $('#week-card').onclick = openHistory; // the "History ›" label is inside the week card
+  $('#hero-tap').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(); } };
   $('#hist-done').onclick = () => { $('#history').hidden = true; render(); };
 
   $('#eve-yes').onclick = () => { state.evening[ymd(new Date())] = true; save(); render(); sync(); };
@@ -264,6 +298,7 @@ if (typeof document !== 'undefined') {
     $('#rows').append(row);
   }
   function showSettings() {
+    prepCard();
     renderDaysOff();
     $('#rows').innerHTML = '';
     (state.schedule.length ? state.schedule : [undefined]).forEach(addRow);
@@ -411,6 +446,99 @@ if (typeof document !== 'undefined') {
     if (!navigator.share) return copy();
     navigator.share({ text, url }).catch(err => err.name === 'AbortError' || copy()); // canceled = do nothing
   };
+
+  // Share streak: a 1080×1920 picture of your streak. It's drawn ahead of time, because iPhone only allows
+  // sharing right when you tap, so nothing can be awaited between the tap and navigator.share().
+  const UI_KEY = 'clutch_ui'; // screen-only settings, kept apart from your data ("studyhall")
+  const readUI = () => { try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch { return {}; } };
+  const FLAME = '<svg xmlns="http://www.w3.org/2000/svg" width="56" height="82" viewBox="22 10 56 82"><path d="M50 12 C59 30 76 40 76 62 C76 79 64 90 50 90 C36 90 24 79 24 62 C24 48 32 40 38 32 C39 43 44 49 50 51 C46 38 45 25 50 12 Z" fill="#FF5A1F"/></svg>';
+  let card = null, cardSig = '', cardJob = Promise.resolve(null);
+  function prepCard() {
+    const now = new Date(), sb = scoreboard(state.logs, now);
+    const info = { streak: sb.streak, best: sb.best, dots: weekDots(state, now, sb.frozen).map(({ look, letter }) => ({ look, letter })) };
+    const sig = JSON.stringify(info);
+    if (sig === cardSig) return cardJob;
+    cardSig = sig; card = null;
+    return cardJob = drawCard(info).then(f => { if (cardSig === sig) card = f; return f; }).catch(() => null);
+  }
+  async function drawCard({ streak, best, dots }) {
+    await Promise.race([Promise.all(['800 440px "Bricolage Grotesque"', '40px "Instrument Sans"', '40px "DM Mono"'].map(f => document.fonts.load(f))),
+      new Promise(ok => setTimeout(ok, 3000))]);
+    const flame = new Image();
+    flame.src = `data:image/svg+xml,${encodeURIComponent(FLAME)}`;
+    await flame.decode();
+    const c = document.createElement('canvas');
+    c.width = 1080; c.height = 1920;
+    const g = c.getContext('2d');
+    g.fillStyle = '#141312';
+    g.fillRect(0, 0, 1080, 1920);
+    g.textAlign = 'center';
+    const text = (t, font, color, y, spacing = 0) => { g.font = font; g.fillStyle = color; g.letterSpacing = `${spacing}px`; g.fillText(t, 540, y); };
+    g.drawImage(flame, 540 - 41, 170, 82, 120);
+    text('CLUTCH', '40px "DM Mono"', '#A8A29A', 350, 8);
+    // Big number + 🔥, shrunk to fit if it's 3+ digits
+    const num = String(streak), fire = ' 🔥';
+    g.letterSpacing = '0px';
+    g.font = '800 440px "Bricolage Grotesque"'; const w1 = g.measureText(num).width;
+    g.font = '300px "Instrument Sans"'; const w2 = g.measureText(fire).width;
+    const k = Math.min(1, 888 / (w1 + w2));
+    g.textAlign = 'left';
+    g.fillStyle = '#F6F1E7';
+    g.font = `800 ${440 * k}px "Bricolage Grotesque"`; g.fillText(num, 540 - (w1 + w2) * k / 2, 960);
+    g.font = `${300 * k}px "Instrument Sans"`; g.fillText(fire, 540 - (w1 + w2) * k / 2 + w1 * k, 960);
+    g.textAlign = 'center';
+    text('STUDY HALL STREAK', '44px "DM Mono"', '#A8A29A', 1090, 6);
+    text(`Best: ${best}`, '44px "Instrument Sans"', '#A8A29A', 1180);
+    // This week's circles, same colors as the app
+    const D = Math.min(96, 888 / Math.max(1, dots.length * 1.3)), gap = D * 30 / 96, x0 = 540 - (dots.length * D + (dots.length - 1) * gap) / 2;
+    dots.forEach(({ look, letter }, i) => {
+      const cx = x0 + D / 2 + i * (D + gap), cy = 1330;
+      g.beginPath(); g.arc(cx, cy, D / 2 - (look === 'hw' || look === 'frozen' || look === 'slack' ? 0 : 2), 0, 2 * Math.PI);
+      if (look === 'hw' || look === 'frozen' || look === 'slack') { g.fillStyle = { hw: '#FF5A1F', frozen: '#2B3A4A', slack: '#3A3733' }[look]; g.fill(); }
+      else { g.setLineDash(look === 'off' ? [12, 10] : []); g.lineWidth = 4; g.strokeStyle = '#3A3733'; g.stroke(); g.setLineDash([]); }
+      if (look === 'hw' || look === 'frozen') { // same check / snowflake as the app (24×24 icons, drawn at half the circle)
+        g.save(); g.translate(cx - D / 4, cy - D / 4); g.scale(D / 48, D / 48);
+        g.lineWidth = look === 'hw' ? 3.5 : 2; g.lineCap = g.lineJoin = 'round'; g.strokeStyle = look === 'hw' ? '#141312' : '#9CC4F2';
+        g.stroke(new Path2D(look === 'hw' ? 'M5 12.5l4.5 4.5L19 7.5' : 'M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 3 3-3M9 20l3-3 3 3'));
+        g.restore();
+      }
+      g.font = '28px "DM Mono"'; g.fillStyle = '#A8A29A'; g.fillText(letter, cx, cy + D / 2 + 50);
+    });
+    const line = streak >= 30 ? 'Try to keep up.' : streak >= 7 ? 'Yes, I actually did my homework.' : streak ? 'Small streak. Big ego.' : 'Rebuilding. Don’t look at me.';
+    text(line, '40px "Instrument Sans"', '#F6F1E7', 1560);
+    text('Track yours:', '34px "Instrument Sans"', '#A8A29A', 1720);
+    text(APP_URL.replace('https://', '').replace(/\/$/, ''), '34px "DM Mono"', '#FF5A1F', 1775);
+    const blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+    return new File([blob], 'clutch-streak.png', { type: 'image/png' });
+  }
+  let sharing = false; // ignore extra taps while the share sheet is open
+  function shareStreak() {
+    if (sharing) return;
+    if (!navigator.share) return navigator.clipboard.writeText(shareText(scoreboard(state.logs, new Date()).streak)).then(() => {
+      $('#toast').hidden = false;
+      setTimeout(() => { $('#toast').hidden = true; }, 2000);
+    });
+    if (!card || !navigator.canShare?.({ files: [card] })) return showCard();
+    sharing = true;
+    navigator.share({ files: [card] }) // the picture only: adding text or a link makes some apps drop the picture
+      .catch(err => err.name === 'AbortError' || err.name === 'InvalidStateError' || showCard()) // canceled = do nothing
+      .finally(() => { sharing = false; });
+  }
+  // Fallback: show the picture full-screen so you can press and hold to save it
+  async function showCard() {
+    const file = card || await prepCard();
+    if (!file) return alert('Couldn’t make the picture. Try again in a second.');
+    $('#card-img').src = URL.createObjectURL(file);
+    $('#card-view').hidden = false;
+  }
+  $('#card-done').onclick = () => { URL.revokeObjectURL($('#card-img').src); $('#card-img').removeAttribute('src'); $('#card-view').hidden = true; };
+  const seenMilestone = () => {
+    localStorage.setItem(UI_KEY, JSON.stringify({ ...readUI(), shareShownFor: scoreboard(state.logs, new Date()).streak }));
+    $('#milestone').hidden = true;
+  };
+  $('#ms-share').onclick = () => { shareStreak(); seenMilestone(); }; // share first: it has to start right at the tap
+  $('#ms-hide').onclick = seenMilestone;
+  $('#hist-share').onclick = $('#btn-share-streak').onclick = shareStreak;
 
   render();
   sync();

@@ -8,6 +8,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Clutch">
+<meta property="og:title" content="Clutch — your study hall streak">
+<meta property="og:description" content="Log homework every study hall. Keep the streak. Don't slack.">
+<meta property="og:image" content="https://leomoroz2011.github.io/studyhall/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://leomoroz2011.github.io/studyhall/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
@@ -96,6 +104,23 @@
   #hist-list { display: flex; flex-direction: column; gap: 10px; }
   #hist-list .card { display: flex; flex-direction: column; gap: 6px; }
   #hist-list .hw { color: var(--orange); } #hist-list .frozen { color: var(--ice); }
+  /* Tap the streak or the week card to open History */
+  .tap { cursor: pointer; transition: transform 120ms, background 120ms; -webkit-tap-highlight-color: transparent; }
+  .tap:active { transform: scale(.98); }
+  .card.tap:active { background: #262321; }
+  .text-btn { display: inline-flex; align-items: center; gap: 4px; width: auto; min-height: 44px; padding: 0 0 0 12px; margin: -14px 0; background: none; border: 0;
+              font-family: var(--mono); font-weight: 400; font-size: 12px; letter-spacing: 1px; color: var(--orange); }
+  #hist-share { margin: 0; }
+  /* Milestone share button (only on milestone days) */
+  #milestone { justify-content: center; gap: 0; margin-top: 10px; }
+  .share-pill { display: inline-flex; align-items: center; gap: 6px; width: auto; min-height: 44px; padding: 0 16px; border: 0; border-radius: 99px;
+                background: var(--orange); color: var(--bg); font-size: 16px; }
+  #milestone .icon-btn { width: 44px; min-height: 44px; font-size: 18px; }
+  /* Share fallback: the image full-screen, press and hold to save */
+  #card-view { position: fixed; inset: 0; z-index: 10; background: rgba(20, 19, 18, .96); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+               padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom)); }
+  #card-view img { max-width: 100%; max-height: calc(100% - 110px); border-radius: 20px; border: 1px solid var(--line); -webkit-touch-callout: default; }
+  #toast { position: fixed; left: 16px; right: 16px; bottom: max(24px, env(safe-area-inset-bottom)); z-index: 11; text-align: center; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -106,12 +131,12 @@
     <h1>Clutch</h1>
     <div class="between" style="gap:4px">
       <span class="pill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 3 3-3M9 20l3-3 3 3"/></svg><span id="s-freezes">1 freeze left</span></span>
-      <button id="btn-history" class="icon-btn" aria-label="History"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></button>
       <button id="btn-gear" class="icon-btn" aria-label="Settings"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </div>
   </div>
 
   <div class="hero">
+   <div id="hero-tap" class="tap" role="button" tabindex="0" aria-label="Open history">
     <p id="celebrate" hidden>Day 7. A full week. Honestly? Proud of you.</p>
     <div class="streak">
       <svg width="84" height="104" viewBox="22 10 56 82"><path d="M50 12 C59 30 76 40 76 62 C76 79 64 90 50 90 C36 90 24 79 24 62 C24 48 32 40 38 32 C39 43 44 49 50 51 C46 38 45 25 50 12 Z" fill="#FF5A1F"/></svg>
@@ -120,10 +145,15 @@
     <p class="label">STUDY HALL STREAK</p>
     <p id="s-best" class="sub"></p>
     <p id="s-event"></p>
+   </div>
+    <div id="milestone" class="between" hidden>
+      <button id="ms-share" class="share-pill" aria-label="Share streak"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M8 10H5v11h14V10h-3"/></svg> Share streak</button>
+      <button id="ms-hide" class="icon-btn" aria-label="Hide share button">✕</button>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="between"><span class="label">THIS WEEK</span><span id="s-halls" class="mono"></span></div>
+  <div id="week-card" class="card tap" aria-label="This week. Open history">
+    <div class="between"><span class="label">THIS WEEK</span><span style="display:flex;align-items:center"><span id="s-halls" class="mono"></span><button class="text-btn" aria-label="Open history">History<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button></span></div>
     <div id="week-dots" class="dots"></div>
     <p id="s-acts" class="mono" style="margin-top:12px"></p>
   </div>
@@ -171,7 +201,10 @@
 <div id="history" hidden>
   <div class="between">
     <h1>History</h1>
-    <button id="hist-done" class="link" style="width:auto">Done</button>
+    <div class="between" style="gap:4px">
+      <button id="hist-share" class="text-btn" aria-label="Share my streak image"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M8 10H5v11h14V10h-3"/></svg>Share</button>
+      <button id="hist-done" class="link" style="width:auto">Done</button>
+    </div>
   </div>
   <div id="hist-list"></div>
 </div>
@@ -223,9 +256,17 @@
 
   <div class="card">
     <h2>Share</h2>
-    <button id="btn-share" class="outline">Share Clutch</button>
+    <button id="btn-share-streak" class="outline">Share streak</button>
+    <button id="btn-share" class="outline">Invite a friend (send link)</button>
   </div>
 </div>
+
+<div id="card-view" hidden>
+  <img id="card-img" alt="Your streak card">
+  <p class="mono">Press and hold the image to save it</p>
+  <button id="card-done" class="link" style="width:auto">Done</button>
+</div>
+<p id="toast" class="card" hidden>Copied. Paste it anywhere.</p>
 
 <script src="app.js"></script>
 </body>
