@@ -84,7 +84,9 @@
   .row.bad input { border: 2px solid var(--red); }
   .dates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
   .dates label { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-  .dates input { font: 16px 'Instrument Sans', system-ui, sans-serif; letter-spacing: 0; padding: 10px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); width: 100%; min-width: 0; color-scheme: dark; min-height: 44px; }
+  .dates input { font: 16px 'Instrument Sans', system-ui, sans-serif; letter-spacing: 0; padding: 10px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); width: 100%; min-width: 0; color-scheme: dark; min-height: 44px;
+                 -webkit-appearance: none; appearance: none; display: block; } /* iPhone gives date boxes a fixed minimum width otherwise, so they overlap */
+  .dates input::-webkit-date-and-time-value { text-align: left; }
   .row .x { width: auto; min-height: 44px; padding: 0 12px; background: none; border: 0; color: var(--red); font-size: 18px; }
   /* Talk-to-type button inside a text box */
   .say { position: relative; }
