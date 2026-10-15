@@ -444,7 +444,8 @@ if (typeof document !== 'undefined') {
   // Share: only the link and a how-to line, never any of your data
   $('#btn-share').onclick = () => {
     const url = location.origin + location.pathname; // no ?query or #hash
-    const text = 'Clutch: tracks if you actually use study hall. Open this link in Safari, tap Share, then Add to Home Screen.';
+    // No colon after "Clutch": newer iPhones read "Clutch:" as the start of a link and turn every space into %20
+    const text = 'Clutch — tracks if you actually use study hall. Open this link in Safari, tap Share, then Add to Home Screen.';
     const copy = () => navigator.clipboard.writeText(`${text} ${url}`).then(() => alert('Link copied. Paste it in a text to a friend.'));
     if (!navigator.share) return copy();
     navigator.share({ text, url }).catch(err => err.name === 'AbortError' || copy()); // canceled = do nothing
