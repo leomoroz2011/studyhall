@@ -123,10 +123,132 @@
                padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom)); }
   #card-view img { max-width: 100%; max-height: calc(100% - 110px); border-radius: 20px; border: 1px solid var(--line); -webkit-touch-callout: default; }
   #toast { position: fixed; left: 16px; right: 16px; bottom: max(24px, env(safe-area-inset-bottom)); z-index: 11; text-align: center; }
+  .brag { background: #141312; color: #F6F1E7; margin-top: 10px; }
+
+  /* First-open setup */
+  #setup { min-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); display: flex; flex-direction: column; }
+  #install { flex: 1; display: flex; flex-direction: column; gap: 14px; padding-top: 28px; }
+  #install .logo { width: 88px; height: 88px; border-radius: 20px; border: 1px solid var(--line); }
+  #install ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; counter-reset: n; }
+  #install li { display: flex; gap: 12px; align-items: center; counter-increment: n; }
+  #install li::before { content: counter(n); flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+                        background: var(--orange); color: var(--bg); font-family: var(--big); font-weight: 800; }
+  #wizard { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .st-top { display: flex; align-items: center; gap: 8px; }
+  .st-top .icon-btn { width: 44px; min-height: 44px; margin-left: -8px; color: var(--text); }
+  .bar { flex: 1; height: 4px; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--orange); transition: width .3s; }
+  .step { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .q { font-size: 34px; line-height: 1.1; }
+  .step .bottom { padding-top: 6px; }
+  .field { font: inherit; width: 100%; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  .field::placeholder { color: #6E6861; }
+  .days { display: flex; justify-content: space-between; }
+  .days button { width: 44px; min-height: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 16px; background: none; color: var(--text); border: 2px solid var(--line); }
+  .days button.on { background: var(--orange); border-color: var(--orange); color: var(--bg); }
+  .dates.bad input { border: 2px solid var(--red); }
+  .rule { display: flex; gap: 14px; align-items: flex-start; }
+  .ico { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+  .rule h2 { font-size: 18px; margin-bottom: 4px; }
+  .notif { display: flex; gap: 10px; background: #2A2724; border-radius: 18px; padding: 12px 14px; font-size: 15px; }
+  .notif img { width: 34px; height: 34px; border-radius: 8px; flex: none; }
+  .ready { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 10px; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
+
+<!-- First-open setup (app.js shows it only while no schedule is saved) -->
+<div id="setup" hidden>
+  <div id="install" hidden>
+    <img class="logo" src="icon.svg" alt="">
+    <h1>Clutch</h1>
+    <p class="sub">Stop wasting study hall. Stop cramming the night before.</p>
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <h2>First, put it on your home screen</h2>
+      <p class="sub">Reminders only work from the home-screen app. Takes 10 seconds.</p>
+      <ol>
+        <li>Tap Share in Safari.</li>
+        <li>Tap Add to Home Screen.</li>
+        <li>Open Clutch from your home screen. Setup starts there.</li>
+      </ol>
+    </div>
+    <p class="footer mono" style="margin-top:auto">Your progress lives in the home-screen app, not this tab.</p>
+  </div>
+
+  <div id="wizard" hidden>
+    <div class="st-top">
+      <button id="st-back" class="icon-btn" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="bar"><i id="st-bar"></i></div>
+    </div>
+    <p id="st-count" class="label">STEP 1 OF 5</p>
+
+    <div class="step" data-step="name">
+      <h1 class="q">What should we call you?</h1>
+      <p class="sub">Just a nickname. It stays on this phone. No email, no password.</p>
+      <label class="label" for="st-name">NICKNAME</label>
+      <input id="st-name" class="field" placeholder="e.g. Leo" autocomplete="nickname" maxlength="30">
+      <div class="bottom">
+        <button id="st-name-next" class="primary">Next</button>
+        <button id="st-restore" class="link">Already used Clutch? Restore a backup</button>
+      </div>
+    </div>
+
+    <div class="step" data-step="sched">
+      <h1 class="q">When's your study hall?</h1>
+      <p class="sub">Days without one never break your streak.</p>
+      <div id="st-days" class="days"></div>
+      <div id="st-same" class="dates">
+        <label class="label">STARTS<input id="st-start" type="time"></label>
+        <label class="label">ENDS<input id="st-end" type="time"></label>
+      </div>
+      <div id="st-rows" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button id="st-perday" class="link" style="width:auto;align-self:flex-start;padding:0">+ Different time on some days</button>
+      <p id="st-err" class="error" hidden></p>
+      <div class="bottom"><button id="st-sched-next" class="primary">Next</button></div>
+    </div>
+
+    <div class="step" data-step="rules">
+      <h1 class="q">Here's the deal.</h1>
+      <div class="card rule"><span class="ico" style="background:var(--orange);color:var(--bg)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+        <div><h2>Did homework? Streak +1.</h2><p class="sub">After study hall, tap Homework and say what you worked on.</p></div></div>
+      <div class="card rule"><span class="ico" style="background:var(--ice-bg);color:var(--ice)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7M9 4l3 3 3-3M9 20l3-3 3 3"/></svg></span>
+        <div><h2>Slacked? A freeze saves you.</h2><p class="sub">New freeze every Monday, max 2. Out of freezes, streak resets.</p></div></div>
+      <div class="card rule"><span class="ico" style="background:#2A2724;color:var(--muted)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+        <div><h2>4 hours to log it.</h2><p class="sub">Then it locks. Forgetting counts as slacking.</p></div></div>
+      <div class="bottom"><button id="st-rules-next" class="primary">Got it</button></div>
+    </div>
+
+    <div class="step" data-step="remind">
+      <h1 class="q">Want a nudge?</h1>
+      <p class="sub">One when study hall ends, one at night. Max 2 a day. Never while your phone's away.</p>
+      <!-- examples only; the real messages are in worker/messages.cjs -->
+      <div class="notif"><img src="icon.png" alt=""><div><div class="between"><span class="label">CLUTCH</span><span class="label">now</span></div>
+        <p>Study hall's over. Did you actually work, or are we lying today? 7🔥 on the line.</p></div></div>
+      <div class="notif"><img src="icon.png" alt=""><div><div class="between"><span class="label">CLUTCH</span><span class="label">now</span></div>
+        <p>Quick one. Anything tonight that was assigned before today? Be honest, I can't tell your teacher.</p></div></div>
+      <div class="bottom">
+        <button id="st-remind-on" class="primary">Turn on reminders</button>
+        <button id="st-remind-skip" class="link" style="color:var(--muted)">Not now</button>
+      </div>
+    </div>
+
+    <div class="step" data-step="ready">
+      <div class="ready">
+        <div class="streak">
+          <svg width="84" height="104" viewBox="22 10 56 82"><path d="M50 12 C59 30 76 40 76 62 C76 79 64 90 50 90 C36 90 24 79 24 62 C24 48 32 40 38 32 C39 43 44 49 50 51 C46 38 45 25 50 12 Z" fill="#FF5A1F"/></svg>
+          <b class="num">0</b>
+        </div>
+        <h1 id="st-hi" class="q">You're set.</h1>
+        <p id="st-first" class="sub"></p>
+      </div>
+      <div class="bottom">
+        <button id="st-go" class="primary">Let's go</button>
+        <button id="st-invite" class="link" style="display:flex;align-items:center;justify-content:center;gap:6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M8 10H5v11h14V10h-3"/></svg>Know someone who slacks too? Send it</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="main" hidden>
   <div class="between">
@@ -139,7 +261,10 @@
 
   <div class="hero">
    <div id="hero-tap" class="tap" role="button" tabindex="0" aria-label="Open history">
-    <p id="celebrate" hidden>Day 7. A full week. Honestly? Proud of you.</p>
+    <div id="celebrate" hidden>
+      <p>Day 7. A full week. Honestly? Proud of you.</p>
+      <button id="brag" class="share-pill brag"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4M8 10H5v11h14V10h-3"/></svg> Rub it in a friend's face</button>
+    </div>
     <div class="streak">
       <svg width="84" height="104" viewBox="22 10 56 82"><path d="M50 12 C59 30 76 40 76 62 C76 79 64 90 50 90 C36 90 24 79 24 62 C24 48 32 40 38 32 C39 43 44 49 50 51 C46 38 45 25 50 12 Z" fill="#FF5A1F"/></svg>
       <b id="s-streak" class="num">0</b>

@@ -112,14 +112,36 @@ const eveText = v => v === 'none' ? 'No homework that night' : `Old homework tha
 const isShareMilestone = (streak, prevBest, ui = {}) => streak > 0 && ui.shareShownFor !== streak &&
   ([7, 14, 30, 50, 100].includes(streak) || streak % 50 === 0 || (streak >= 7 && streak === prevBest + 1));
 
-if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, eveDue, sweep, openSlot, nextSlot, autoMissed, scoreboard, weekDots, shareText, oldBest, isShareMilestone, eveText };
+// Saved app data. Older saves lack the later additions, so they're filled in on load and on restore:
+// activities = extra productive stuff per day, myActs = your own activity names, daysOff = breaks, nickname = from setup.
+const withDefaults = s => ({ activities: {}, myActs: [], daysOff: [], nickname: '', ...s });
+// Restore: the backup file's text → the app data, or null if it isn't a Clutch backup.
+function readBackup(text) {
+  const d = JSON.parse(text);
+  return Array.isArray(d.schedule) && d.logs && d.evening ? withDefaults(d) : null;
+}
+// First-open setup only shows while no schedule is saved. A phone that has one never sees it.
+const needsSetup = state => !state.schedule.length;
+// A schedule line is bad if a time is missing (a half-typed time reads as missing) or the end isn't after the start.
+const badTimes = s => !s.start || !s.end || s.end <= s.start;
+// Saving a schedule (Settings or setup). It only counts from now on, so nothing before it becomes "missed".
+function useSchedule(state, schedule, now) {
+  if (state.schedule.length) sweep(state, now); // lock in misses from the old schedule first
+  state.schedule = schedule;
+  state.since = now.toISOString();
+}
+// What the reminder server gets: results only. Notes, activities, your own activity names and your nickname stay here.
+function forServer(state) {
+  const { activities, myActs, nickname, ...rest } = state;
+  return { ...rest, logs: Object.fromEntries(Object.entries(state.logs).map(([k, v]) => [k, { r: v.r }])) };
+}
+
+if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, eveDue, sweep, openSlot, nextSlot, autoMissed, scoreboard, weekDots, shareText, oldBest, isShareMilestone, eveText,
+  withDefaults, readBackup, needsSetup, badTimes, useSchedule, forServer };
 
 if (typeof document !== 'undefined') {
   const KEY = 'studyhall';
   const $ = s => document.querySelector(s);
-  // activities = extra productive stuff per day, myActs = your own activity names (both added later, so older saves lack them)
-  // daysOff = school breaks / canceled study halls (added later too)
-  const withDefaults = s => ({ activities: {}, myActs: [], daysOff: [], ...s });
   let state = withDefaults(JSON.parse(localStorage.getItem(KEY)) || { schedule: [], logs: {}, evening: {}, since: null });
   const save = () => localStorage.setItem(KEY, JSON.stringify(state));
 
@@ -130,8 +152,9 @@ if (typeof document !== 'undefined') {
     const now = new Date(), today = ymd(now);
     const setUp = state.schedule.length > 0;
     if (setUp) { sweep(state, now); save(); }
-    $('#main').hidden = !setUp || !$('#settings').hidden || !$('#history').hidden;
-    if (!setUp) { if ($('#settings').hidden) showSettings(); return; } // don't wipe rows you're typing in
+    $('#main').hidden = !setUp || setupStep !== null || !$('#settings').hidden || !$('#history').hidden;
+    if (!setUp && setupStep === null) startSetup();
+    if (!setUp || setupStep !== null) return; // setup is showing
 
     // Streak
     const sb = scoreboard(state.logs, now);
@@ -275,7 +298,7 @@ if (typeof document !== 'undefined') {
     scrollTo(0, 0);
   }
   $('#hero-tap').onclick = $('#week-card').onclick = openHistory; // the "History ›" label is inside the week card
-  $('#hero-tap').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(); } };
+  $('#hero-tap').onkeydown = e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openHistory(); } }; // not when the share button inside has focus
   $('#hist-done').onclick = () => { $('#history').hidden = true; render(); };
 
   const saveEve = v => { state.evening[ymd(new Date())] = v; save(); render(); sync(); };
@@ -322,13 +345,11 @@ if (typeof document !== 'undefined') {
     });
     if (!schedule.length) return alert('Add at least one study hall.');
     // A half-typed time (e.g. AM/PM not picked) reads as empty, so point at the exact line.
-    const bad = schedule.map(s => !s.start || !s.end || s.end <= s.start);
+    const bad = schedule.map(badTimes);
     rows.forEach((r, i) => r.classList.toggle('bad', bad[i]));
     const badDays = schedule.filter((s, i) => bad[i]).map(s => DAYS[s.day]);
-    if (badDays.length) return alert(`Check the red line(s): ${badDays.join(', ')}.\n\nClick each time and make sure the hour, minutes AND AM/PM are all filled in. The end has to be after the start.`);
-    if (state.schedule.length) sweep(state, new Date()); // lock in misses from the old schedule first
-    state.schedule = schedule;
-    state.since = new Date().toISOString(); // the new schedule only counts from now on
+    if (badDays.length) return alert(`Check the red line(s): ${badDays.join(', ')}.\n\n${TIME_HELP}`);
+    useSchedule(state, schedule, new Date());
     save();
     $('#settings').hidden = true;
     render();
@@ -403,15 +424,13 @@ if (typeof document !== 'undefined') {
   localStorage.removeItem('pushSent');
 
   // Sends your progress to the reminder server, so reminders know your real streak, when study hall ends,
-  // and whether you've opened the app. Notes, activities and your own activity names stay on your phone.
+  // and whether you've opened the app. Notes, activities, your own activity names and your nickname stay on your phone.
   async function sync() {
     if (localStorage.getItem('reminders') !== 'on') return;
     try {
       const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
       if (!sub) { localStorage.removeItem('reminders'); showOn(false); return; } // notifications were turned off
-      const logs = Object.fromEntries(Object.entries(state.logs).map(([k, v]) => [k, { r: v.r }]));
-      const { activities, myActs, ...rest } = state;
-      await post('/sync', { tz: Intl.DateTimeFormat().resolvedOptions().timeZone, sub, state: { ...rest, logs, lastOpen: new Date().toISOString() } });
+      await post('/sync', { tz: Intl.DateTimeFormat().resolvedOptions().timeZone, sub, state: { ...forServer(state), lastOpen: new Date().toISOString() } });
       $('#sync-status').textContent = `Synced ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
       return true;
     } catch (err) { $('#sync-status').textContent = `Couldn’t sync: ${err.message}`; }
@@ -429,26 +448,39 @@ if (typeof document !== 'undefined') {
   $('#btn-import').onclick = () => $('#import-file').click();
   $('#import-file').onchange = async e => {
     try {
-      const data = JSON.parse(await e.target.files[0].text());
-      if (!Array.isArray(data.schedule) || !data.logs || !data.evening) throw 0;
+      const data = readBackup(await e.target.files[0].text());
+      if (!data) throw 0;
       if (!confirm('Replace everything in the app with this backup?')) return;
-      state = withDefaults(data);
+      state = data;
       save();
       $('#settings').hidden = true; // back to the home screen (also after a fresh re-install, where Done is hidden)
+      if (!needsSetup(state)) { setupStep = null; $('#setup').hidden = true; } // restored from the setup screen: skip the rest
       render();
       sync();
     } catch { alert('That file isn’t a Clutch backup.'); }
     e.target.value = '';
   };
 
-  // Share: only the link and a how-to line, never any of your data
-  $('#btn-share').onclick = () => {
-    const url = location.origin + location.pathname; // no ?query or #hash
-    // No colon after "Clutch": newer iPhones read "Clutch:" as the start of a link and turn every space into %20
-    const text = 'Clutch — tracks if you actually use study hall. Open this link in Safari, tap Share, then Add to Home Screen.';
-    const copy = () => navigator.clipboard.writeText(`${text} ${url}`).then(() => alert('Link copied. Paste it in a text to a friend.'));
+  const toast = msg => {
+    $('#toast').textContent = msg;
+    $('#toast').hidden = false;
+    setTimeout(() => { $('#toast').hidden = true; }, 2000);
+  };
+  // Share sheet with plain text + the app link (no encoding). No share sheet → copy both and say so.
+  // Never start the text with "Word:": newer iPhones read that as the start of a link and turn every space into %20.
+  const shareLine = (text, copied) => {
+    const copy = () => navigator.clipboard.writeText(`${text} ${APP_URL}`).then(() => toast(copied));
     if (!navigator.share) return copy();
-    navigator.share({ text, url }).catch(err => err.name === 'AbortError' || copy()); // canceled = do nothing
+    navigator.share({ text, url: APP_URL }).catch(err => err.name === 'AbortError' || copy()); // canceled = do nothing
+  };
+  // Invite: only the link and a how-to line, never any of your data
+  const invite = () => shareLine('Clutch — tracks if you actually use study hall. Open this link in Safari, tap Share, then Add to Home Screen.',
+    'Link copied. Paste it in a text to a friend.');
+  $('#btn-share').onclick = invite;
+  // Day 7 banner
+  $('#brag').onclick = e => {
+    e.stopPropagation(); // the banner sits on the streak, which opens History
+    shareLine("I'm on a 7 study hall streak on Clutch. Bet you can't do it.", 'Copied!');
   };
 
   // Share streak: a 1080×1920 picture of your streak. It's drawn ahead of time, because iPhone only allows
@@ -518,10 +550,7 @@ if (typeof document !== 'undefined') {
   let sharing = false; // ignore extra taps while the share sheet is open
   function shareStreak() {
     if (sharing) return;
-    if (!navigator.share) return navigator.clipboard.writeText(shareText(scoreboard(state.logs, new Date()).streak)).then(() => {
-      $('#toast').hidden = false;
-      setTimeout(() => { $('#toast').hidden = true; }, 2000);
-    });
+    if (!navigator.share) return navigator.clipboard.writeText(shareText(scoreboard(state.logs, new Date()).streak)).then(() => toast('Copied. Paste it anywhere.'));
     if (!card || !navigator.canShare?.({ files: [card] })) return showCard();
     sharing = true;
     navigator.share({ files: [card] }) // the picture only: adding text or a link makes some apps drop the picture
@@ -543,6 +572,101 @@ if (typeof document !== 'undefined') {
   $('#ms-share').onclick = () => { shareStreak(); seenMilestone(); }; // share first: it has to start right at the tap
   $('#ms-hide').onclick = seenMilestone;
   $('#hist-share').onclick = $('#btn-share-streak').onclick = shareStreak;
+
+  // First-open setup. Only while no schedule is saved (render() starts it), so a phone that's set up never sees it.
+  // Step 0 (iPhone/iPad Safari only): add to home screen first, with no way past it, because Safari and the
+  // home-screen app keep separate data. Setting up in Safari would leave everything stuck in that tab.
+  const TIME_HELP = 'Tap each time and make sure the hour, minutes AND AM/PM are all filled in. The end has to be after the start.';
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  let setupStep = null; // null = not in setup, -1 = "add to home screen", 0+ = position in steps()
+  const steps = () => ['name', 'sched', 'rules', ...('PushManager' in window ? ['remind'] : []), 'ready']; // reminders need a device that can get them
+  function startSetup() {
+    $('#setup').hidden = false;
+    $('#settings').hidden = $('#history').hidden = true;
+    if (ios && !standalone) { setupStep = -1; $('#install').hidden = false; $('#wizard').hidden = true; return; }
+    showStep(0);
+  }
+  function showStep(i) {
+    const list = steps(), name = list[i];
+    setupStep = i;
+    $('#install').hidden = true;
+    $('#wizard').hidden = false;
+    for (const s of document.querySelectorAll('.step')) s.hidden = s.dataset.step !== name;
+    $('#st-back').style.visibility = i ? 'visible' : 'hidden';
+    $('#st-count').textContent = `STEP ${i + 1} OF ${list.length}`;
+    $('#st-bar').style.width = `${(i + 1) / list.length * 100}%`;
+    if (name === 'name') $('#st-name').value = state.nickname;
+    if (name === 'ready') {
+      const now = new Date(), n = nextSlot(state, now);
+      $('#st-hi').textContent = state.nickname ? `You're set, ${state.nickname}.` : "You're set.";
+      $('#st-first').textContent = `Your streak starts at your next study hall: ${n ? `${ymd(n.day) === ymd(now) ? 'today' : DAYS[n.day.getDay()]} at ${fmt(n.start)}` : 'see your schedule'}. You've got 1 freeze to start.`;
+    }
+    scrollTo(0, 0);
+  }
+  $('#st-back').onclick = () => showStep(setupStep - 1);
+
+  // Step: nickname (optional)
+  $('#st-name-next').onclick = () => { state.nickname = $('#st-name').value.trim(); save(); showStep(setupStep + 1); };
+  $('#st-restore').onclick = () => $('#import-file').click(); // the normal restore; it closes setup if the backup has a schedule
+
+  // Step: schedule. Day circles M–S, one start/end for all, or one row per day.
+  const WEEK = [1, 2, 3, 4, 5, 6, 0];
+  const onDays = new Set([1, 2, 3, 4, 5]);
+  let perDay = false;
+  const rowTimes = () => Object.fromEntries([...document.querySelectorAll('#st-rows .row')].map(r => {
+    const [start, end] = r.querySelectorAll('input');
+    return [r.dataset.day, { start: start.value, end: end.value }];
+  }));
+  function drawDays() {
+    const kept = rowTimes(); // keep what's typed in the rows when a day is switched on/off
+    $('#st-days').innerHTML = '';
+    for (const d of WEEK) {
+      const b = document.createElement('button');
+      b.textContent = DAYS[d][0];
+      b.className = onDays.has(d) ? 'on' : '';
+      b.setAttribute('aria-label', DAYS[d]);
+      b.setAttribute('aria-pressed', onDays.has(d));
+      b.onclick = () => { onDays.has(d) ? onDays.delete(d) : onDays.add(d); drawDays(); };
+      $('#st-days').append(b);
+    }
+    $('#st-same').hidden = perDay;
+    $('#st-perday').hidden = perDay;
+    $('#st-rows').innerHTML = '';
+    if (perDay) for (const d of WEEK.filter(d => onDays.has(d))) {
+      const t = kept[d] || { start: $('#st-start').value, end: $('#st-end').value };
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.dataset.day = d;
+      row.innerHTML = `<span class="label" style="width:36px">${DAYS[d].toUpperCase()}</span><input type="time" aria-label="${DAYS[d]} start"><span>to</span><input type="time" aria-label="${DAYS[d]} end">`;
+      const [start, end] = row.querySelectorAll('input');
+      start.value = t.start; end.value = t.end;
+      $('#st-rows').append(row);
+    }
+  }
+  $('#st-perday').onclick = () => { perDay = true; drawDays(); };
+  $('#st-sched-next').onclick = () => {
+    const err = msg => { $('#st-err').textContent = msg; $('#st-err').hidden = !msg; };
+    const days = WEEK.filter(d => onDays.has(d)), rows = rowTimes();
+    if (!days.length) return err('Pick at least one day.');
+    const schedule = days.map(d => ({ day: d, ...(perDay ? rows[d] : { start: $('#st-start').value, end: $('#st-end').value }) }));
+    const bad = schedule.map(badTimes);
+    $('#st-same').classList.toggle('bad', !perDay && bad.some(Boolean));
+    for (const r of document.querySelectorAll('#st-rows .row')) r.classList.toggle('bad', bad[days.indexOf(+r.dataset.day)]);
+    if (bad.some(Boolean)) return err(perDay ? `Check the red line(s). ${TIME_HELP}` : TIME_HELP);
+    err('');
+    useSchedule(state, schedule, new Date()); // exactly like Save schedule in Settings
+    save();
+    sync();
+    showStep(setupStep + 1);
+  };
+  drawDays();
+
+  $('#st-rules-next').onclick = () => showStep(setupStep + 1);
+  $('#st-remind-on').onclick = async () => { await $('#btn-notify').onclick(); showStep(setupStep + 1); };
+  $('#st-remind-skip').onclick = () => showStep(setupStep + 1);
+  $('#st-go').onclick = () => { setupStep = null; $('#setup').hidden = true; render(); };
+  $('#st-invite').onclick = invite;
 
   render();
   sync();

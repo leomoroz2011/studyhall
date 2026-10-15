@@ -128,6 +128,30 @@ assert(eveDue(s, t(29, 18, 50))); // tonight's own check, a new question
 assert.deepEqual(s.evening, {});
 assert(!eveDue(off(), t(28, 19)));                                                 // day off: no card
 
+// First-open setup: only with no schedule. A phone that has one (with logs) never sees it.
+const { needsSetup, withDefaults, readBackup, forServer, badTimes, useSchedule } = require('./app.js');
+assert(needsSetup({ schedule: [], logs: {}, evening: {} }));
+assert(!needsSetup(fresh()));
+// Old saves (before nickname existed) load unchanged, nickname just starts empty
+const oldSave = { schedule, logs: { '2026-09-28 10:00': { r: 'hw', note: 'math', at: 'x' } }, evening: { '2026-09-28': true }, since: 'x' };
+assert.deepEqual(withDefaults(JSON.parse(JSON.stringify(oldSave))), { activities: {}, myActs: [], daysOff: [], nickname: '', ...oldSave });
+// Nickname survives Export backup → Restore, along with everything else
+const mineAll = withDefaults({ ...oldSave, nickname: 'Leo', activities: { '2026-09-28': { did: ['Workout'], note: '' } } });
+assert.deepEqual(readBackup(JSON.stringify(mineAll, null, 2)), mineAll);
+assert.equal(readBackup(JSON.stringify({ hello: 1 })), null);                    // not a Clutch backup
+// ...but never goes to the reminder server (neither do notes or activities)
+const sent = JSON.stringify(forServer(mineAll));
+assert(!/Leo|math|Workout|nickname/.test(sent));
+assert.deepEqual(forServer(mineAll).logs, { '2026-09-28 10:00': { r: 'hw' } });
+// Setup's schedule check matches Settings: every time filled in, end after start
+assert(badTimes({ start: '', end: '10:50' }) && badTimes({ start: '10:50', end: '10:00' }) && !badTimes({ start: '10:00', end: '10:50' }));
+// Saving the schedule counts from now on, so nothing before it turns into "missed"
+s = { schedule: [], logs: {}, evening: {}, since: null };
+useSchedule(s, schedule, t(28, 15));
+sweep(s, t(28, 23, 0));
+assert.equal(s.since, t(28, 15).toISOString());
+assert.deepEqual(Object.keys(s.logs), []); // the 10:00 hall's window closed before setup; the 22:00 one is still open
+
 // Reminder server rules (worker/check.js). Pacific time; Oct 1 2026 is a Thursday, study hall 8:30–9:30 PM.
 import('./worker/check.js').then(({ check }) => {
   const P = hm => new Date(`2026-10-01T${hm}:00-07:00`); // Pacific daylight time
