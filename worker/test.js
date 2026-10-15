@@ -1,7 +1,8 @@
 // Checks the reminder server's rules. Run with: node test.js (inside the worker folder)
 import assert from 'assert';
 process.env.TZ = 'UTC'; // Cloudflare runs in UTC; wall() handles each person's time zone
-import { wall, check } from './index.js';
+import { wall, check as rules } from './check.js';
+const check = (...a) => rules(...a).text; // just the message (null = nothing sent)
 
 // Times are real instants; the person is in Denver (UTC-6 in October)
 const T = s => new Date(`${s}-06:00`);
@@ -18,6 +19,7 @@ assert(/\b1\b/.test(check(user(), log, T('2026-10-01T18:55:00')))); // streak of
 assert.equal(check(user(), log, T('2026-10-01T19:00:00')), null);
 // Not if already answered tonight
 assert.equal(check(user({ evening: { '2026-10-01': false } }), {}, T('2026-10-01T18:55:00')), null);
+assert.equal(check(user({ evening: { '2026-10-01': 'none' } }), {}, T('2026-10-01T18:55:00')), null); // "No homework tonight" counts as answered
 // Study hall reminder right after it ends (9:35 PM), once
 log = { day: '2026-10-01', sent: ['eve'] };
 assert(check(user(), log, T('2026-10-01T21:35:00')));

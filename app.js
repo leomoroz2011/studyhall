@@ -33,6 +33,10 @@ function sweep(state, now) {
       if (s.close > since && s.close <= now && !state.logs[s.key]) state.logs[s.key] = { r: 'missed' };
 }
 
+// The evening check only ever asks about today: from 6:50 PM until midnight, never on a day off,
+// and only until it's answered (yes, no, or 'none' = no homework tonight). Used by the app and the reminder server.
+const eveDue = (state, now) => now >= at(now, EVENING_OPENS) && !isDayOff(state, now) && !(ymd(now) in (state.evening || {}));
+
 const openSlot = (state, now) =>
   hallsOn(state, now).find(s => s.end <= now && now < s.close && !state.logs[s.key]);
 
@@ -103,10 +107,12 @@ function oldBest(logs, now) {
   return 0;
 }
 // Show the "Share streak" button? On 7, 14, 30, 50, 100, every 50 after, or the first day of a new best (7+). Once per value.
+// Evening answer in History: true/false = old homework yes/no, 'none' = no homework at all that night.
+const eveText = v => v === 'none' ? 'No homework that night' : `Old homework that night: ${v ? 'yes' : 'no'}`;
 const isShareMilestone = (streak, prevBest, ui = {}) => streak > 0 && ui.shareShownFor !== streak &&
   ([7, 14, 30, 50, 100].includes(streak) || streak % 50 === 0 || (streak >= 7 && streak === prevBest + 1));
 
-if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, sweep, openSlot, nextSlot, autoMissed, scoreboard, weekDots, shareText, oldBest, isShareMilestone };
+if (typeof module !== 'undefined') module.exports = { ymd, at, slotsOn, isDayOff, eveDue, sweep, openSlot, nextSlot, autoMissed, scoreboard, weekDots, shareText, oldBest, isShareMilestone, eveText };
 
 if (typeof document !== 'undefined') {
   const KEY = 'studyhall';
@@ -160,7 +166,7 @@ if (typeof document !== 'undefined') {
     const loggedToday = Object.entries(state.logs).some(([k, l]) => k.startsWith(today) && l.at); // you logged it (not auto-missed)
     const act = !slot && loggedToday && !state.activities[today];
     const unanswered = state.evening[today] === undefined, eveOpen = now >= at(now, EVENING_OPENS);
-    const eve = !slot && !act && eveOpen && unanswered;
+    const eve = !slot && !act && eveDue(state, now);
     $('#log-card').hidden = !slot;
     $('#act-card').hidden = !act;
     if (act) renderChips();
@@ -261,7 +267,7 @@ if (typeof document !== 'undefined') {
         : `<p><b class="${frozen.includes(k) ? 'frozen' : ''}">${l.r === 'slack' ? 'Slacked' : 'Missed'}${frozen.includes(k) ? ' (freeze used)' : ''}</b></p>`);
       const a = state.activities[d];
       const extra = a?.did.length ? `<p>${a.did.map(esc).join(', ')}${a.note ? ` — ${esc(a.note)}` : ''}</p>` : '';
-      const eve = d in state.evening ? `<p class="sub">Old homework that night: ${state.evening[d] ? 'yes' : 'no'}</p>` : '';
+      const eve = d in state.evening ? `<p class="sub">${eveText(state.evening[d])}</p>` : '';
       return `<div class="card"><span class="label">${fmtDate(d).toUpperCase()}</span>${halls.join('')}${extra}${eve}</div>`;
     }).join('') || '<p class="sub">Nothing logged yet.</p>';
     $('#history').hidden = false;
@@ -272,8 +278,10 @@ if (typeof document !== 'undefined') {
   $('#hero-tap').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(); } };
   $('#hist-done').onclick = () => { $('#history').hidden = true; render(); };
 
-  $('#eve-yes').onclick = () => { state.evening[ymd(new Date())] = true; save(); render(); sync(); };
-  $('#eve-no').onclick = () => { state.evening[ymd(new Date())] = false; save(); render(); sync(); };
+  const saveEve = v => { state.evening[ymd(new Date())] = v; save(); render(); sync(); };
+  $('#eve-yes').onclick = () => saveEve(true);
+  $('#eve-no').onclick = () => saveEve(false);
+  $('#eve-none').onclick = () => saveEve('none');
 
   // Schedule editor
   function addRow(s = { day: 1, start: '', end: '' }) {

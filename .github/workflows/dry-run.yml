@@ -1,0 +1,37 @@
+# Test the reminder rules without waiting: Actions → "Reminder dry run" → Run workflow.
+# Prints what the reminder server WOULD send at the time you type, and why. It never sends anything.
+name: Reminder dry run
+on:
+  workflow_dispatch:
+    inputs:
+      when:
+        description: 'Pretend date and time, 24-hour clock (e.g. 2026-10-16 18:55)'
+        required: true
+      tz:
+        description: 'Time zone'
+        default: 'America/Los_Angeles'
+      day_off:
+        description: 'Pretend that day is a day off'
+        type: boolean
+        default: false
+      evening:
+        description: 'Evening check answer for that day'
+        type: choice
+        options: [unanswered, 'yes', 'no', none]
+        default: unanswered
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node worker/dry-run.js "$WHEN" "$TZ_NAME" "$DAY_OFF" "$EVENING"
+        env:
+          TZ: UTC # same as the reminder server
+          WHEN: ${{ inputs.when }}
+          TZ_NAME: ${{ inputs.tz }}
+          DAY_OFF: ${{ inputs.day_off }}
+          EVENING: ${{ inputs.evening }}
+          STATE: ${{ vars.STATE }}
